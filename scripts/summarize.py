@@ -16,7 +16,7 @@ from schemas import Article, CollectedArticle
 
 INPUT_PATH = "/tmp/neura_collected.json"
 OUTPUT_PATH = "/tmp/neura_summarized.json"
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = "gemini-2.0-flash-lite"
 GEMINI_TIMEOUT = 30  # NF-01
 BODY_MAX_CHARS_IN_PROMPT = 3000
 MAX_ARTICLES = 10
