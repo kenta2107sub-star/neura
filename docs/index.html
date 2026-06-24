@@ -82,7 +82,7 @@
 
     /* ── Layout ── */
     main {
-      max-width: 860px;
+      max-width: 960px;
       margin: 0 auto;
       padding: 32px 20px 96px;
     }
@@ -360,6 +360,7 @@
     .date-card-right .cat-bar-wrap {
       width: 80px;
       max-width: 80px;
+      display: block;
     }
     .date-count-row {
       display: flex;
@@ -376,7 +377,7 @@
       display: flex;
       align-items: center;
       gap: 5px;
-      font-size: 10px;
+      font-size: 11px;
       color: var(--sub);
       line-height: 1.7;
       overflow: hidden;
@@ -584,7 +585,7 @@
       background: #050505;
       border: 1px solid var(--border-mid);
       border-left: 2px solid var(--accent);
-      font-size: 12px;
+      font-size: 13px;
       line-height: 1.8;
       color: #AAAAAA;
     }
@@ -1455,7 +1456,7 @@
               ${titlesHtml}
             </span>
             <span class="date-card-right" aria-hidden="true">
-              <span>${catBarHtml}</span>
+              ${catBarHtml}
               <span class="date-count-row">
                 <span class="article-count">[${count}]</span>
                 <span class="chevron">›</span>
