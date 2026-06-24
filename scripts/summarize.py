@@ -16,7 +16,7 @@ from schemas import Article, CollectedArticle
 
 INPUT_PATH = "/tmp/neura_collected.json"
 OUTPUT_PATH = "/tmp/neura_summarized.json"
-MODEL_NAME = "gemini-2.0-flash-lite"
+MODEL_NAME = "gemini-2.5-flash"
 GEMINI_TIMEOUT = 30  # NF-01
 BODY_MAX_CHARS_IN_PROMPT = 3000
 MAX_ARTICLES = 10
@@ -72,8 +72,6 @@ def main() -> None:
     prompt = build_prompt(articles, config["gemini_prompt"])
 
     client = genai.Client(api_key=api_key)
-    print(f"[DEBUG] genai module: {genai.__file__}")
-    print(f"[DEBUG] model: {MODEL_NAME}")
 
     try:
         response = client.models.generate_content(
