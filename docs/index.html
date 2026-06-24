@@ -895,17 +895,17 @@
     .settings-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
     .settings-check input { accent-color: var(--accent); width: 14px; height: 14px; }
     .settings-sources { display: flex; flex-direction: column; gap: 8px; }
-    .source-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .source-row { display: flex; align-items: center; gap: 10px; }
     .source-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
-    .source-row .src-name { font-size: 12px; color: var(--text); min-width: 150px; }
+    .source-row .src-name { font-size: 12px; color: var(--text); width: 160px; flex-shrink: 0; box-sizing: border-box; }
     .source-row .src-url {
-      flex: 1; min-width: 180px; background: var(--bg); border: 1px solid var(--border);
+      flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border);
       color: var(--sub); font-family: inherit; font-size: 11px; padding: 5px 8px; box-sizing: border-box;
     }
-    .source-row .src-type { font-size: 10px; color: var(--sub); border: 1px solid var(--border-mid); padding: 2px 6px; }
+    .source-row .src-type { font-size: 10px; color: var(--sub); border: 1px solid var(--border-mid); padding: 2px 6px; width: 84px; text-align: center; flex-shrink: 0; box-sizing: border-box; }
     .source-row .src-del {
       background: none; border: 1px solid var(--border-mid); color: var(--sub);
-      font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+      font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; flex-shrink: 0;
     }
     .source-row .src-del:hover { color: var(--error); border-color: var(--error); }
     .settings-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
