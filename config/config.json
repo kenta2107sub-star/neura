@@ -6,19 +6,85 @@
     "ツール": true
   },
   "sources": [
-    { "name": "Hacker News", "url": "https://hacker-news.firebaseio.com/v0/topstories.json", "type": "hackernews", "enabled": true },
-    { "name": "Reddit r/artificial", "url": "https://www.reddit.com/r/artificial/top/.rss?t=day", "type": "reddit", "enabled": true },
-    { "name": "Reddit r/MachineLearning", "url": "https://www.reddit.com/r/MachineLearning/top/.rss?t=day", "type": "reddit", "enabled": true },
-    { "name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "type": "rss", "enabled": true },
-    { "name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "type": "rss", "enabled": true },
-    { "name": "VentureBeat AI", "url": "https://venturebeat.com/category/ai/feed/", "type": "rss", "enabled": true },
-    { "name": "Zenn AI", "url": "https://zenn.dev/topics/ai/feed", "type": "zenn", "enabled": true },
-    { "name": "はてなブックマーク IT", "url": "https://b.hatena.ne.jp/hotentry/it.rss", "type": "hatena", "enabled": true }
+    {
+      "name": "Hacker News",
+      "url": "https://hacker-news.firebaseio.com/v0/topstories.json",
+      "type": "hackernews",
+      "enabled": true
+    },
+    {
+      "name": "Reddit r/artificial",
+      "url": "https://www.reddit.com/r/artificial/top/.rss?t=day",
+      "type": "reddit",
+      "enabled": true
+    },
+    {
+      "name": "Reddit r/MachineLearning",
+      "url": "https://www.reddit.com/r/MachineLearning/top/.rss?t=day",
+      "type": "reddit",
+      "enabled": true
+    },
+    {
+      "name": "TechCrunch AI",
+      "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+      "type": "rss",
+      "enabled": true
+    },
+    {
+      "name": "MIT Technology Review AI",
+      "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+      "type": "rss",
+      "enabled": true
+    },
+    {
+      "name": "VentureBeat AI",
+      "url": "https://venturebeat.com/category/ai/feed/",
+      "type": "rss",
+      "enabled": true
+    },
+    {
+      "name": "Zenn AI",
+      "url": "https://zenn.dev/topics/ai/feed",
+      "type": "zenn",
+      "enabled": true
+    },
+    {
+      "name": "はてなブックマーク IT",
+      "url": "https://b.hatena.ne.jp/hotentry/it.rss",
+      "type": "hatena",
+      "enabled": true
+    }
   ],
+  "run_hour_jst": 13,
   "keywords": {
-    "en": ["ai", "llm", "gpt", "claude", "gemini", "openai", "anthropic", "machine learning", "deep learning", "neural", "chatbot", "agent", "generative"],
-    "ja": ["AI", "LLM", "GPT", "Claude", "Gemini", "OpenAI", "Anthropic", "機械学習", "生成AI", "チャットボット", "エージェント"]
+    "en": [
+      "ai",
+      "llm",
+      "gpt",
+      "claude",
+      "gemini",
+      "openai",
+      "anthropic",
+      "machine learning",
+      "deep learning",
+      "neural",
+      "chatbot",
+      "agent",
+      "generative"
+    ],
+    "ja": [
+      "AI",
+      "LLM",
+      "GPT",
+      "Claude",
+      "Gemini",
+      "OpenAI",
+      "Anthropic",
+      "機械学習",
+      "生成AI",
+      "チャットボット",
+      "エージェント"
+    ]
   },
-  "gemini_prompt": "以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n各記事について以下の形式でJSON配列を返してください。\n海外・日本語の両ソースからバランスよく選んでください。\n\n各記事のJSONフィールド：\n- url: 元記事のURLをそのまま返す（変更禁止）\n- title_ja: 日本語タイトル（30文字以内。元が日本語の場合はそのまま使用）\n- summary_ja: 日本語要約（80文字以内）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n    - コードブロックは ```言語名 で囲んでそのまま保持（翻訳しない）\n    - インラインコード（関数名・変数名・ライブラリ名）は `backtick` で囲んでそのまま保持\n    - 見出しは ## / ### で構造を維持する\n    - 箇条書きは - で保持する\n    - 重要ワードは **太字** で保持する\n    - URLリンクは除去してプレーンテキストにする\n    - 本文が「（本文取得不可）」の場合は null を返す\n- category: \"ニュース\" | \"研究\" | \"活用事例\" | \"ツール\" のいずれか\n- importance: 1〜5の整数（5が最重要。AI業界への影響度・新規性・実用性で判断）\n\n記事一覧:\n{articles}\n\nJSON配列のみを返してください。説明文・マークダウンの囲み・前後の文章は不要です。",
-  "run_hour_jst": 13
+  "gemini_prompt": "以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n各記事について以下の形式でJSON配列を返してください。\n海外・日本語の両ソースからバランスよく選んでください。\n\n各記事のJSONフィールド：\n- url: 元記事のURLをそのまま返す（変更禁止）\n- title_ja: 日本語タイトル（30文字以内。元が日本語の場合はそのまま使用）\n- summary_ja: 日本語要約（80文字以内）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n    - コードブロックは ```言語名 で囲んでそのまま保持（翻訳しない）\n    - インラインコード（関数名・変数名・ライブラリ名）は `backtick` で囲んでそのまま保持\n    - 見出しは ## / ### で構造を維持する\n    - 箇条書きは - で保持する\n    - 重要ワードは **太字** で保持する\n    - URLリンクは除去してプレーンテキストにする\n    - 本文が「（本文取得不可）」の場合は null を返す\n- category: \"ニュース\" | \"研究\" | \"活用事例\" | \"ツール\" のいずれか\n- importance: 1〜5の整数（5が最重要。AI業界への影響度・新規性・実用性で判断）\n\n記事一覧:\n{articles}\n\nJSON配列のみを返してください。説明文・マークダウンの囲み・前後の文章は不要です。"
 }
