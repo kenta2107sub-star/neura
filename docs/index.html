@@ -227,7 +227,7 @@
     /* ── Date Card (list row) ── */
     .date-card {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 16px;
       padding: 12px 14px;
       cursor: pointer;
@@ -281,13 +281,14 @@
       min-width: 0;
       display: flex;
       flex-direction: column;
-      gap: 9px;
+      gap: 0;
     }
     .date-main-top {
+      height: 46px;
       display: flex;
       align-items: center;
       gap: 10px;
-      margin: 4px 0;
+      margin: 0;
     }
     .date-card-date {
       font-size: 13px;
@@ -311,7 +312,7 @@
     .cat-bar-wrap {
       position: relative;
       width: 100%;
-      max-width: 300px;
+      max-width: 160px;
     }
     .cat-bar-wrap:hover .cat-bar-tooltip { opacity: 1; pointer-events: none; }
     .cat-bar-tooltip {
@@ -351,9 +352,55 @@
 
     .date-card-right {
       display: flex;
-      align-items: center;
-      gap: 12px;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
       flex-shrink: 0;
+    }
+    .date-card-right .cat-bar-wrap {
+      width: 80px;
+      max-width: 80px;
+    }
+    .date-count-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .date-titles {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 20px;
+      margin-top: 4px;
+    }
+    .date-title-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      color: var(--sub);
+      line-height: 1.7;
+      overflow: hidden;
+    }
+    .date-title-badge {
+      font-size: 9px;
+      width: 46px;
+      min-width: 46px;
+      text-align: center;
+      padding: 0 2px;
+      border: 1px solid;
+      white-space: nowrap;
+      flex-shrink: 0;
+      line-height: 1.6;
+    }
+    .date-title-badge--news     { color: var(--news-c);     border-color: rgba(96,165,250,0.25); }
+    .date-title-badge--research { color: var(--research-c); border-color: rgba(192,132,252,0.25); }
+    .date-title-badge--usecase  { color: var(--usecase-c);  border-color: rgba(52,211,153,0.25); }
+    .date-title-badge--tool     { color: var(--tool-c);     border-color: rgba(251,191,36,0.25); }
+    .date-title-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
     }
     .article-count {
       font-size: 13px;
@@ -1202,12 +1249,12 @@
 
   function categoryBadge(cat) {
     const map = {
-      'ニュース':  ['badge-news',     'NEWS'],
-      '研究':      ['badge-research', 'RES '],
-      '活用事例':  ['badge-usecase',  'USE '],
-      'ツール':    ['badge-tool',     'TOOL'],
+      'ニュース':  ['badge-news',     'ニュース'],
+      '研究':      ['badge-research', '研究'],
+      '活用事例':  ['badge-usecase',  '活用事例'],
+      'ツール':    ['badge-tool',     'ツール'],
     };
-    const [cls, tag] = map[cat] || ['badge-news', 'INFO'];
+    const [cls, tag] = map[cat] || ['badge-news', cat || 'その他'];
     return `<span class="category-badge ${cls}">[${tag}]</span>`;
   }
 
@@ -1384,6 +1431,16 @@
           catBarHtml = `<span class="cat-bar-wrap"><span class="cat-bar"><span class="cat-seg cat-seg--empty" style="flex:1"></span></span></span>`;
         }
 
+        const CAT_KEY = {'ニュース':'news','研究':'research','活用事例':'usecase','ツール':'tool'};
+        const titlesHtml = meta.titles && meta.titles.length > 0
+          ? '<span class="date-titles">' + meta.titles.slice(0,10).map(t => {
+              const titleText = typeof t === 'object' ? t.t : t;
+              const cat = typeof t === 'object' ? t.c : '';
+              const catKey = CAT_KEY[cat] || 'news';
+              return `<span class="date-title-row"><span class="date-title-badge date-title-badge--${catKey}">${escHtml(cat)}</span><span class="date-title-text">${escHtml(titleText)}</span></span>`;
+            }).join('') + '</span>'
+          : '';
+
         return `
           <a class="date-card${isLatest ? ' date-card--latest' : ''}${hasData ? '' : ' date-card--nodata'}" href="javascript:void(0)" onclick="goDetail('${date}')" tabindex="0" aria-label="${formatDate(date)} ${hasData ? count + '件' : 'データなし'}">
             <span class="date-tile" aria-hidden="true">
@@ -1395,11 +1452,14 @@
                 <span class="date-card-date">${yy}/${mm}/${dd}</span>
                 ${isLatest ? '<span class="latest-tag">● LATEST</span>' : ''}
               </span>
-              <span aria-hidden="true">${catBarHtml}</span>
+              ${titlesHtml}
             </span>
-            <span class="date-card-right">
-              <span class="article-count">[${count}]</span>
-              <span class="chevron" aria-hidden="true">›</span>
+            <span class="date-card-right" aria-hidden="true">
+              <span>${catBarHtml}</span>
+              <span class="date-count-row">
+                <span class="article-count">[${count}]</span>
+                <span class="chevron">›</span>
+              </span>
             </span>
           </a>`;
       }).join('');

@@ -33,10 +33,11 @@ def save_json(path: str, data) -> None:
 
 
 def build_index_meta(today: str, articles: list[Article]) -> dict:
-    """日次記事から index 用メタ（件数・カテゴリ内訳）を生成する。"""
+    """日次記事から index 用メタ（件数・カテゴリ内訳・タイトル一覧）を生成する。"""
     cats = Counter(a.get("category", "") for a in articles)
     cats.pop("", None)
-    return {"date": today, "count": len(articles), "categories": dict(cats)}
+    titles = [{"t": a.get("title_ja", ""), "c": a.get("category", "")} for a in articles]
+    return {"date": today, "count": len(articles), "categories": dict(cats), "titles": titles}
 
 
 def update_index(index: dict, meta: dict) -> dict:
