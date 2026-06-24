@@ -23,6 +23,9 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
+      - name: Debug checkout
+        run: cat requirements.txt && git log --oneline -3
+
       - name: Install dependencies
         run: pip install -r requirements.txt && pip show google-genai google-generativeai 2>&1 || true
 
