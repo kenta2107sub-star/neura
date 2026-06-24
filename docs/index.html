@@ -594,7 +594,7 @@
       padding: 0;
       font-family: inherit;
       font-size: 12px;
-      color: #AAAAAA;
+      color: #D4D4D4;
       line-height: 1.7;
     }
     .tk-kw  { color: #C084FC; }
@@ -1146,7 +1146,7 @@
     const codeBlocks = [];
     let s = md.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
       const highlighted = highlightCode(escHtml(code.trimEnd()), lang);
-      const label = lang ? `<span style="font-size:10px;color:#3A3A3A;display:block;margin-bottom:4px;">${escHtml(lang)}</span>` : '';
+      const label = lang ? `<span style="font-size:10px;color:#7A9AB8;display:block;margin-bottom:4px;">${escHtml(lang)}</span>` : '';
       codeBlocks.push(`<pre>${label}<code>${highlighted}</code></pre>`);
       return `\x00CODE${codeBlocks.length - 1}\x00`;
     });
