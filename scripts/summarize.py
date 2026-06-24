@@ -16,7 +16,7 @@ from schemas import Article, CollectedArticle
 
 INPUT_PATH = "/tmp/neura_collected.json"
 OUTPUT_PATH = "/tmp/neura_summarized.json"
-MODEL_NAME = "gemini-2.0-flash-lite"
+MODEL_NAME = "gemini-2.0-flash"
 GEMINI_TIMEOUT = 30  # NF-01
 BODY_MAX_CHARS_IN_PROMPT = 3000
 MAX_ARTICLES = 10
@@ -58,7 +58,8 @@ def build_prompt(articles: list[CollectedArticle], template: str) -> str:
 
 
 def main() -> None:
-    import google.generativeai as genai  # 遅延import（モジュール読込を軽量に保つ）
+    from google import genai  # 遅延import（モジュール読込を軽量に保つ）
+    from google.genai import types
 
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -70,17 +71,16 @@ def main() -> None:
 
     prompt = build_prompt(articles, config["gemini_prompt"])
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(MODEL_NAME)
+    client = genai.Client(api_key=api_key)
 
     try:
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.3,
             ),
-            request_options={"timeout": GEMINI_TIMEOUT},
         )
     except Exception as e:
         # タイムアウト含む API 呼び出し失敗
