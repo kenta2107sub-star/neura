@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "neura-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "docs", "-p", "3000", "--no-clipboard"],
+      "port": 3000
+    }
+  ]
+}

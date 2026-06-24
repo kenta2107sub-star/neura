@@ -1,0 +1,46 @@
+name: Neura Daily Digest
+
+on:
+  schedule:
+    - cron: '0 4 * * *'    # 毎日04:00 UTC = 13:00 JST
+  workflow_dispatch:         # 手動実行（テスト用）
+
+jobs:
+  daily-digest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # git push のために必要
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect articles (FR-01)
+        run: python scripts/collect.py
+        # 失敗時: 後続ステップはすべてスキップされる（exit(1)による）
+
+      - name: Summarize with Gemini (FR-02)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/summarize.py
+
+      - name: Notify Discord (FR-03)
+        continue-on-error: true   # Discord失敗でもarchive.pyを必ず実行する
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/notify.py
+
+      - name: Archive to GitHub Pages (FR-04)
+        run: python scripts/archive.py
+        # GITHUB_TOKEN はcheckout時に自動設定されるため env: 不要

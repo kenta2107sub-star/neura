@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neura — AI Daily Digest</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #080808;
+      --surface:     #0F0F0F;
+      --surface2:    #161616;
+      --border:      #222222;
+      --border-mid:  #333333;
+      --accent:      #00FF41;
+      --accent-dim:  rgba(0,255,65,0.07);
+      --accent-mid:  rgba(0,255,65,0.14);
+      --text:        #CCCCCC;
+      --text-bright: #EEEEEE;
+      --sub:         #555555;
+      --sub-light:   #3A3A3A;
+      --error:       #FF4444;
+      --warn:        #FFAA00;
+      --news-c:      #60A5FA;
+      --research-c:  #C084FC;
+      --usecase-c:   #34D399;
+      --tool-c:      #FBBF24;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', 'Menlo', 'Consolas', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: 0;
+    }
+    .logo-prompt { color: var(--accent); }
+    .logo-path   { color: var(--sub); }
+    .logo-name   { color: var(--text-bright); }
+    .logo-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: var(--accent);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 1px;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .logo-sub {
+      font-size: 11px;
+      color: var(--sub);
+      border-left: 1px solid var(--border-mid);
+      padding-left: 16px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Layout ── */
+    main {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 32px 20px 96px;
+    }
+
+    /* ── Screen ── */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── Screen header ── */
+    .home-header-block {
+      position: relative;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      padding: 24px 24px;
+      margin-bottom: 32px;
+      min-height: 150px;
+    }
+    .home-title {
+      position: relative;
+      z-index: 2;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .home-sub {
+      position: relative;
+      z-index: 2;
+      font-size: 11px;
+      color: var(--sub);
+      margin-bottom: 0;
+    }
+    .home-sub::before { content: '# '; color: var(--sub-light); }
+
+    /* ── Neural network viz ── */
+    .neura-canvas {
+      position: absolute;
+      top: 0;
+      right: 0;
+      height: 100%;
+      width: 58%;
+      z-index: 1;
+      pointer-events: none;
+      -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 28%, #000 100%);
+              mask-image: linear-gradient(to right, transparent 0%, #000 28%, #000 100%);
+    }
+    .neura-stat {
+      position: absolute;
+      right: 22px;
+      bottom: 16px;
+      z-index: 2;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      color: var(--sub);
+      pointer-events: none;
+      text-align: right;
+    }
+    .neura-stat b { color: var(--accent); font-weight: 700; }
+    @media (max-width: 640px) {
+      .neura-canvas, .neura-stat { display: none; }
+      .home-header-block { min-height: 0; }
+    }
+
+    /* ── Search ── */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 0;
+    }
+    .search-prompt {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-size: 13px;
+      pointer-events: none;
+      font-family: inherit;
+    }
+    .search-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 0;
+      padding: 10px 12px 10px 30px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text-bright);
+      outline: none;
+      transition: border-color 0.1s;
+    }
+    .search-input::placeholder { color: var(--sub); }
+    .search-input:focus { border-color: var(--accent); }
+
+    /* ── Month Group ── */
+    .month-group { margin-bottom: 12px; }
+    .month-header {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 10px 0;
+      cursor: pointer;
+      user-select: none;
+      color: var(--sub);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      transition: color 0.12s;
+    }
+    .month-header:hover { color: var(--text); }
+    .month-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .month-rule-right { margin-left: 10px; }
+    .month-label {
+      padding: 0 10px;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .month-chevron {
+      font-size: 10px;
+      transition: transform 0.15s;
+      display: inline-block;
+    }
+    .month-group.open .month-chevron { transform: rotate(90deg); }
+    .month-count { color: var(--sub-light); }
+
+    .month-cards {
+      display: none;
+      flex-direction: column;
+      gap: 0;
+    }
+    .month-group.open .month-cards { display: flex; }
+
+    /* ── Date Card (list row) ── */
+    .date-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 14px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      border: 1px solid transparent;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .date-card:hover {
+      background: var(--surface);
+      border-color: var(--border-mid);
+      border-left-color: var(--accent);
+    }
+    .date-card:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+    /* calendar tile */
+    .date-tile {
+      flex-shrink: 0;
+      width: 46px;
+      height: 46px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border-mid);
+      background: var(--surface);
+      line-height: 1;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .date-tile-day {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+    .date-tile-wd {
+      font-size: 10px;
+      color: var(--sub);
+      margin-top: 3px;
+    }
+    .date-card:hover .date-tile { border-color: var(--accent); }
+    .date-card--latest .date-tile {
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(0,255,65,0.25);
+    }
+    .date-card--latest .date-tile-day { color: var(--accent); }
+
+    /* main column */
+    .date-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .date-main-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 4px 0;
+    }
+    .date-card-date {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      transition: color 0.1s;
+    }
+    .date-card:hover .date-card-date { color: var(--accent); }
+    .latest-tag {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 1px 6px;
+      text-shadow: 0 0 6px rgba(0,255,65,0.4);
+    }
+
+    /* category distribution bar */
+    .cat-bar-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 300px;
+    }
+    .cat-bar-wrap:hover .cat-bar-tooltip { opacity: 1; pointer-events: none; }
+    .cat-bar-tooltip {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      padding: 6px 10px;
+      font-size: 10px;
+      line-height: 1.8;
+      white-space: nowrap;
+      color: var(--text);
+      opacity: 0;
+      transition: opacity 0.15s;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .cat-bar-tooltip-row { display: flex; align-items: center; gap: 6px; }
+    .cat-bar-tooltip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .cat-bar {
+      display: flex;
+      height: 5px;
+      width: 100%;
+      gap: 2px;
+    }
+    .cat-seg { display: block; height: 100%; }
+    .cat-seg--news     { background: var(--news-c); }
+    .cat-seg--research { background: var(--research-c); }
+    .cat-seg--usecase  { background: var(--usecase-c); }
+    .cat-seg--tool     { background: var(--tool-c); }
+    .cat-seg--empty    { background: var(--sub-light); opacity: 0.4; }
+
+    .date-card--nodata { opacity: 0.5; }
+    .date-card--nodata .date-tile-day { color: var(--sub); }
+    .date-card--nodata .article-count { color: var(--sub); }
+
+    .date-card-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .article-count {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .chevron {
+      color: var(--sub);
+      font-size: 16px;
+      line-height: 1;
+      transition: color 0.1s, transform 0.12s;
+    }
+    .date-card:hover .chevron { color: var(--accent); transform: translateX(3px); }
+
+    /* ── Article Card ── */
+    .article-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* Base article */
+    .article-card {
+      border-bottom: 1px solid var(--border);
+      padding: 32px 0;
+      transition: background 0.1s;
+      display: flex;
+      gap: 16px;
+    }
+    .article-ln {
+      flex-shrink: 0;
+      width: 2.5ch;
+      text-align: right;
+      color: var(--sub-light);
+      font-size: 12px;
+      user-select: none;
+      padding-top: 1px;
+      transition: color 0.1s;
+    }
+    .article-card:hover .article-ln { color: var(--accent); }
+    .article-body { flex: 1; min-width: 0; }
+
+    /* Featured (importance 5) */
+    .article-card--feature {
+      border-bottom: 1px solid var(--border);
+    }
+    .article-card--feature .article-title { color: var(--text-bright); }
+    .featured-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: #000;
+      background: var(--accent);
+      padding: 1px 6px;
+      margin-right: 8px;
+      vertical-align: middle;
+      text-shadow: none;
+    }
+
+    /* Compact (importance 1-2) */
+    .article-card--compact {
+      padding: 12px 0;
+    }
+    .article-card--compact .article-summary { display: none; }
+
+    .article-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .article-top-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .category-badge {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .badge-news     { color: var(--news-c); }
+    .badge-research { color: var(--research-c); }
+    .badge-usecase  { color: var(--usecase-c); }
+    .badge-tool     { color: var(--tool-c); }
+
+    .importance-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .importance-label {
+      font-size: 10px;
+      color: var(--sub);
+      letter-spacing: 0.05em;
+    }
+    .importance-bar {
+      font-size: 11px;
+      letter-spacing: 0;
+      color: var(--accent);
+    }
+    .importance-bar .empty-bar { color: var(--sub-light); }
+
+    .article-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      line-height: 1.45;
+      color: var(--text-bright);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .article-title-text { min-width: 0; }
+    /* feature title color defined above */
+    .article-card--compact .article-title { font-size: 13px; }
+
+    .article-summary {
+      font-size: 12px;
+      color: var(--sub);
+      line-height: 1.65;
+      margin-bottom: 14px;
+    }
+
+    .article-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .article-footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .source-badge {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+    .source-badge::before { content: 'via '; font-weight: 400; color: var(--sub); }
+
+    /* ── Action Buttons (translate / read) ── */
+    .action-btn {
+      font-size: 11px;
+      font-family: inherit;
+      padding: 3px 10px;
+      border-radius: 0;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      transition: background 0.1s, border-color 0.1s, color 0.1s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .action-btn:focus { outline: 1px solid var(--accent); outline-offset: 2px; }
+    .action-btn--translate,
+    .action-btn--read {
+      color: var(--sub);
+      background: none;
+      border: 1px solid var(--border-mid);
+      height: 26px;
+      line-height: 1;
+    }
+    .action-btn--translate:hover,
+    .action-btn--read:hover { color: var(--text); border-color: var(--sub); }
+
+    /* ── Translation Panel ── */
+    .translation-panel {
+      display: none;
+      margin-top: 14px;
+      padding: 16px;
+      background: #050505;
+      border: 1px solid var(--border-mid);
+      border-left: 2px solid var(--accent);
+      font-size: 12px;
+      line-height: 1.8;
+      color: #AAAAAA;
+    }
+    .translation-panel.open { display: block; }
+    .translation-panel .translation-unavailable {
+      color: var(--sub);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .translation-panel h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-bright);
+      margin: 0 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .translation-panel h3 {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--sub);
+      margin: 14px 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .translation-panel p { margin: 0 0 10px; }
+    .translation-panel p:last-child { margin-bottom: 0; }
+    .translation-panel ul, .translation-panel ol {
+      margin: 0 0 10px 18px;
+    }
+    .translation-panel li { margin-bottom: 3px; }
+    .translation-panel strong { color: var(--text-bright); font-weight: 700; }
+    .translation-panel code {
+      font-family: inherit;
+      font-size: 12px;
+      background: var(--surface2);
+      padding: 1px 5px;
+      color: var(--accent);
+    }
+    .translation-panel pre {
+      background: #2A3F55;
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      overflow-x: auto;
+      margin: 10px 0;
+      font-family: inherit;
+    }
+    .translation-panel pre code {
+      background: none;
+      padding: 0;
+      font-family: inherit;
+      font-size: 12px;
+      color: #AAAAAA;
+      line-height: 1.7;
+    }
+    .tk-kw  { color: #C084FC; }
+    .tk-str { color: #4ADE80; }
+    .tk-cm  { color: #3A3A3A; font-style: italic; }
+    .tk-fn  { color: #60A5FA; }
+    .tk-nb  { color: #FB923C; }
+    .tk-op  { color: #22D3EE; }
+
+    /* ── Button ── */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      color: var(--accent);
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 700;
+      padding: 8px 18px;
+      border: 1px solid var(--accent);
+      border-radius: 0;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.12s;
+    }
+    .btn-primary:hover { background: var(--accent-mid); }
+    .btn-primary:focus { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+    /* ── Back button ── */
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--sub);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      margin-bottom: 28px;
+      transition: color 0.1s;
+    }
+    .back-btn:hover { color: var(--accent); }
+    .back-btn:focus { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+    /* ── Detail header ── */
+    .detail-header {
+      position: relative;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      padding: 24px 24px;
+      margin-bottom: 32px;
+      min-height: 130px;
+    }
+    .detail-title {
+      position: relative;
+      z-index: 2;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      margin-bottom: 6px;
+      color: var(--text-bright);
+    }
+    .detail-sub {
+      position: relative;
+      z-index: 2;
+      font-size: 11px;
+      color: var(--sub);
+      margin: 0;
+    }
+    .detail-sub::before { content: '# '; color: var(--sub-light); }
+
+    /* ── Search result date ── */
+    .search-result-date {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--sub);
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
+    }
+    .search-result-date::before { content: '@ '; color: var(--sub-light); }
+
+    /* ── Empty / Error ── */
+    .empty-state, .error-state {
+      text-align: center;
+      padding: 64px 24px;
+      color: var(--sub);
+    }
+    .empty-state .icon, .error-state .icon {
+      font-size: 32px;
+      margin-bottom: 16px;
+      display: block;
+      opacity: 0.5;
+    }
+    .empty-state p, .error-state p {
+      font-size: 12px;
+      margin-bottom: 24px;
+      color: var(--sub);
+    }
+
+    /* ── Skeleton ── */
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.3; }
+    }
+    .skeleton {
+      background: var(--surface2);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .skeleton-card {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .skeleton-card .sk-line { height: 12px; background: var(--surface2); animation: pulse 1.8s ease-in-out infinite; }
+    .skeleton-card .sk-wide  { width: 180px; }
+    .skeleton-card .sk-narrow{ width: 60px; }
+
+    /* ── Visually hidden ── */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ── Terminal window chrome ── */
+    .win-dots {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-right: 6px;
+    }
+    .win-dots span {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      display: block;
+    }
+    .win-dots .d-r { background: #FF5F56; }
+    .win-dots .d-y { background: #FFBD2E; }
+    .win-dots .d-g { background: #27C93F; }
+    .header-meta {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--sub);
+      letter-spacing: 0.04em;
+    }
+    .header-meta b { color: var(--sub-light); font-weight: 400; }
+
+    .settings-link {
+      margin-left: 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-family: inherit;
+      color: var(--sub);
+      background: none;
+      border: 1px solid var(--border-mid);
+      padding: 4px 9px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: color 0.1s, border-color 0.1s;
+    }
+    .settings-link:hover { color: var(--accent); border-color: var(--accent); }
+    .settings-gear { font-size: 12px; }
+
+    /* ── Phosphor glow on accent ── */
+    .logo-prompt,
+    .search-prompt,
+    .article-count,
+    .importance-bar > span:first-child,
+    .action-btn--read {
+      text-shadow: 0 0 6px rgba(0,255,65,0.45);
+    }
+    .logo-cursor { box-shadow: 0 0 8px rgba(0,255,65,0.7); }
+
+    /* ── Command-prompt prefixes ── */
+    #detail-title::before { content: '$ cat '; color: var(--accent); }
+    #search-title::before { content: '$ '; color: var(--accent); }
+
+    /* ── vim-style status bar ── */
+    .status-mode {
+      background: var(--accent);
+      color: #000 !important;
+      font-weight: 700 !important;
+      padding: 4px 10px !important;
+      letter-spacing: 0.12em !important;
+      text-shadow: none;
+    }
+    .status-file {
+      text-transform: none !important;
+      color: var(--text) !important;
+      letter-spacing: 0 !important;
+    }
+    .status-file::before { content: '\00a0'; }
+    .status-pos {
+      margin-left: auto;
+      text-transform: none !important;
+      color: var(--sub) !important;
+      letter-spacing: 0 !important;
+    }
+
+    /* ── CRT scanlines + vignette ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 300;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.22) 0px,
+        rgba(0,0,0,0.22) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      opacity: 0.45;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 299;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.55) 100%);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .logo-cursor { animation: none; }
+    }
+
+    /* ── Settings (SCR-04) ── */
+    .settings-head { margin-bottom: 24px; }
+    .settings-banner {
+      background: var(--surface);
+      border: 1px solid var(--warn);
+      border-left: 3px solid var(--warn);
+      color: var(--text);
+      padding: 12px 14px;
+      font-size: 12px;
+      margin-bottom: 24px;
+    }
+    .settings-banner.is-error { border-color: var(--error); border-left-color: var(--error); }
+    .settings-body { display: flex; flex-direction: column; gap: 28px; }
+    .settings-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      padding: 18px 20px;
+    }
+    .settings-h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: 0.04em;
+      margin-bottom: 16px;
+    }
+    .settings-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .settings-field:last-child { margin-bottom: 0; }
+    .settings-field label { font-size: 11px; color: var(--sub); letter-spacing: 0.02em; }
+    .settings-input, .settings-textarea {
+      background: var(--bg);
+      border: 1px solid var(--border-mid);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      padding: 8px 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .settings-input:focus, .settings-textarea:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-mid);
+    }
+    .settings-textarea { resize: vertical; line-height: 1.6; }
+    .settings-textarea--tall { min-height: 220px; }
+    .settings-fielderr { color: var(--error); font-size: 11px; }
+    .inline-code {
+      font-family: inherit; background: var(--surface2);
+      color: var(--accent); padding: 1px 4px; font-size: 11px;
+    }
+    .settings-conn { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+    .conn-status { font-size: 12px; color: var(--sub); }
+    .conn-status.is-ok { color: var(--accent); }
+    .settings-checks { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+    .settings-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
+    .settings-check input { accent-color: var(--accent); width: 14px; height: 14px; }
+    .settings-sources { display: flex; flex-direction: column; gap: 8px; }
+    .source-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .source-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+    .source-row .src-name { font-size: 12px; color: var(--text); min-width: 150px; }
+    .source-row .src-url {
+      flex: 1; min-width: 180px; background: var(--bg); border: 1px solid var(--border);
+      color: var(--sub); font-family: inherit; font-size: 11px; padding: 5px 8px; box-sizing: border-box;
+    }
+    .source-row .src-type { font-size: 10px; color: var(--sub); border: 1px solid var(--border-mid); padding: 2px 6px; }
+    .source-row .src-del {
+      background: none; border: 1px solid var(--border-mid); color: var(--sub);
+      font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer;
+    }
+    .source-row .src-del:hover { color: var(--error); border-color: var(--error); }
+    .settings-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
+    .settings-toast {
+      position: fixed; bottom: 56px; right: 24px; z-index: 200;
+      background: var(--surface); border: 1px solid var(--accent); border-left: 3px solid var(--accent);
+      color: var(--text-bright); padding: 12px 16px; font-size: 12px; max-width: 360px;
+      box-shadow: 0 0 18px rgba(0,255,65,0.15);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 520px) {
+      main { padding: 24px 14px 88px; }
+      .article-card--feature { margin: 0 -14px; padding-right: 14px; }
+      .detail-title { font-size: 14px; }
+      .article-top { flex-wrap: wrap; }
+      .source-row .src-name { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="win-dots" aria-hidden="true">
+    <span class="d-r"></span><span class="d-y"></span><span class="d-g"></span>
+  </div>
+  <div class="logo">
+    <span class="logo-prompt">$</span>
+    <span class="logo-path">~/</span><span class="logo-name">neura</span>
+    <span class="logo-cursor" aria-hidden="true"></span>
+  </div>
+  <div class="logo-sub">AI Daily Digest</div>
+  <div class="header-meta" aria-hidden="true">zsh <b>·</b> utf-8 <b>·</b> 100×40</div>
+  <button class="settings-link" onclick="goSettings()" aria-label="設定">
+    <span class="settings-gear" aria-hidden="true">⚙</span><span>config</span>
+  </button>
+</header>
+
+<main>
+
+  <!-- SCR-01: ホーム（日付一覧） -->
+  <section class="screen" id="scr-01" aria-label="ホーム">
+    <div id="home-loading" aria-busy="true" aria-label="データを読み込んでいます">
+      <div style="height:11px;width:120px;margin-bottom:4px;" class="skeleton"></div>
+      <div style="height:11px;width:200px;margin-bottom:28px;" class="skeleton"></div>
+      <div style="height:36px;margin-bottom:36px;" class="skeleton"></div>
+      <div class="skeleton-card">
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div class="skeleton sk-line sk-wide"></div>
+          <div class="skeleton sk-line sk-narrow"></div>
+        </div>
+        <div class="skeleton sk-line" style="width:36px;"></div>
+      </div>
+      <div class="skeleton-card">
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div class="skeleton sk-line sk-wide"></div>
+          <div class="skeleton sk-line sk-narrow"></div>
+        </div>
+        <div class="skeleton sk-line" style="width:36px;"></div>
+      </div>
+      <div class="skeleton-card">
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div class="skeleton sk-line sk-wide"></div>
+          <div class="skeleton sk-line sk-narrow"></div>
+        </div>
+        <div class="skeleton sk-line" style="width:36px;"></div>
+      </div>
+    </div>
+
+    <div id="home-content" style="display:none;">
+      <div class="home-header-block">
+        <canvas class="neura-canvas" id="neura-canvas" aria-hidden="true"></canvas>
+        <span class="neura-stat" id="neura-stat" aria-hidden="true"></span>
+        <p class="home-title">AI Daily Digest</p>
+        <p class="home-sub" id="home-sub">毎日13時に更新 — 海外・日本語ソースから厳選</p>
+      </div>
+      <div class="search-wrap">
+        <span class="search-prompt" aria-hidden="true">&gt;</span>
+        <label for="search-input" class="sr-only">キーワードで過去記事を検索</label>
+        <input class="search-input" id="search-input" type="search"
+          placeholder="キーワードで過去記事を検索..."
+          autocomplete="off"
+          aria-label="キーワードで過去記事を検索"
+          onkeydown="handleSearchKey(event)">
+      </div>
+      <div class="date-grid" id="date-list"></div>
+    </div>
+
+    <div id="home-empty" class="empty-state" role="status" style="display:none;">
+      <span class="icon" aria-hidden="true">📭</span>
+      <p>まだデータがありません。しばらくお待ちください。</p>
+    </div>
+
+    <div id="home-error" class="error-state" role="alert" style="display:none;">
+      <span class="icon" aria-hidden="true">⚠️</span>
+      <p>データの読み込みに失敗しました。しばらく後に再試行してください。</p>
+      <button class="btn-primary" onclick="loadHome()">[ 再試行 ]</button>
+    </div>
+  </section>
+
+  <!-- SCR-03: 検索結果 -->
+  <section class="screen" id="scr-03" aria-label="検索結果">
+    <button class="back-btn" onclick="goHome()">← cd ..</button>
+    <div id="search-header" class="detail-header">
+      <h1 class="detail-title" id="search-title"></h1>
+      <p class="detail-sub" id="search-sub"></p>
+    </div>
+    <div class="article-list" id="search-results"></div>
+    <div id="search-empty" class="empty-state" role="status" style="display:none;">
+      <span class="icon" aria-hidden="true">🔍</span>
+      <p id="search-empty-msg"></p>
+    </div>
+  </section>
+
+  <!-- SCR-02: 日次詳細（記事一覧） -->
+  <section class="screen" id="scr-02" aria-label="日次詳細">
+    <button class="back-btn" id="back-btn" onclick="goHome()">← cd ..</button>
+
+    <div id="detail-loading" aria-busy="true" aria-label="記事を読み込んでいます">
+      <div style="height:15px;width:280px;margin-bottom:6px;" class="skeleton"></div>
+      <div style="height:11px;width:140px;margin-bottom:28px;" class="skeleton"></div>
+      <div class="skeleton-card" style="height:80px;"></div>
+      <div class="skeleton-card" style="height:80px;"></div>
+      <div class="skeleton-card" style="height:80px;"></div>
+    </div>
+
+    <div id="detail-content" style="display:none;">
+      <div class="detail-header">
+        <canvas class="neura-canvas" id="wave-canvas" aria-hidden="true"></canvas>
+        <span class="neura-stat" id="wave-stat" aria-hidden="true"></span>
+        <h1 class="detail-title" id="detail-title"></h1>
+        <p class="detail-sub" id="detail-sub"></p>
+      </div>
+      <div class="article-list" id="article-list"></div>
+    </div>
+
+    <div id="detail-error" class="error-state" role="alert" style="display:none;">
+      <span class="icon" aria-hidden="true">🔍</span>
+      <p>指定した日付のデータが見つかりません。</p>
+      <button class="btn-primary" onclick="goHome()">← cd ..</button>
+    </div>
+  </section>
+
+  <!-- SCR-04: 設定画面 -->
+  <section class="screen" id="scr-04" aria-label="設定">
+    <button class="back-btn" onclick="goHome()">← cd ..</button>
+    <div class="detail-header settings-head">
+      <h1 class="detail-title">$ vim config.json</h1>
+      <p class="detail-sub"># 収集設定を編集して GitHub に保存する（次回の定時実行から反映）</p>
+    </div>
+
+    <div id="settings-banner" class="settings-banner" role="alert" style="display:none;"></div>
+
+    <div class="settings-body">
+      <!-- GitHub接続 -->
+      <div class="settings-section">
+        <h2 class="settings-h2">## GitHub 接続設定</h2>
+        <div class="settings-field">
+          <label for="cfg-owner">Owner（GitHubユーザー名）</label>
+          <input id="cfg-owner" class="settings-input" type="text" autocomplete="off" placeholder="your-account">
+        </div>
+        <div class="settings-field">
+          <label for="cfg-repo">Repo（リポジトリ名）</label>
+          <input id="cfg-repo" class="settings-input" type="text" autocomplete="off" placeholder="neura">
+        </div>
+        <div class="settings-field">
+          <label for="cfg-pat">Personal Access Token（scope: repo, workflow）</label>
+          <input id="cfg-pat" class="settings-input" type="password" autocomplete="off" placeholder="ghp_...">
+        </div>
+        <div class="settings-conn">
+          <span id="conn-status" class="conn-status">❌ 未接続</span>
+          <button class="action-btn action-btn--translate" onclick="saveGithubCreds()">[ 接続情報を保存 ]</button>
+          <button class="action-btn action-btn--translate" onclick="clearPat()">[ PAT削除 ]</button>
+        </div>
+      </div>
+
+      <!-- ジャンル -->
+      <div class="settings-section">
+        <h2 class="settings-h2">## ニュースジャンル</h2>
+        <div class="settings-checks" id="cfg-genres"></div>
+      </div>
+
+      <!-- ソース -->
+      <div class="settings-section">
+        <h2 class="settings-h2">## 収集ソース</h2>
+        <div class="settings-sources" id="cfg-sources"></div>
+        <button class="action-btn action-btn--translate" style="margin-top:10px;" onclick="addSourceRow()">[ + RSSソースを追加 ]</button>
+      </div>
+
+      <!-- 実行スケジュール -->
+      <div class="settings-section">
+        <h2 class="settings-h2">## 実行スケジュール</h2>
+        <div class="settings-field">
+          <label for="cfg-run-hour">実行時刻（JST）</label>
+          <select id="cfg-run-hour" class="settings-input" style="width:120px;cursor:pointer;"></select>
+          <p style="font-size:11px;color:var(--sub);margin-top:4px;">変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）</p>
+        </div>
+      </div>
+
+      <!-- キーワード -->
+      <div class="settings-section">
+        <h2 class="settings-h2">## キーワードフィルタ</h2>
+        <div class="settings-field">
+          <label for="cfg-kw-en">英語キーワード（カンマ区切り）</label>
+          <textarea id="cfg-kw-en" class="settings-textarea" rows="2"></textarea>
+        </div>
+        <div class="settings-field">
+          <label for="cfg-kw-ja">日本語キーワード（カンマ区切り）</label>
+          <textarea id="cfg-kw-ja" class="settings-textarea" rows="2"></textarea>
+        </div>
+      </div>
+
+      <!-- Geminiプロンプト -->
+      <div class="settings-section">
+        <h2 class="settings-h2">## Gemini プロンプト</h2>
+        <div class="settings-field">
+          <label for="cfg-prompt">プロンプト全文（<code class="inline-code">{articles}</code> プレースホルダー必須）</label>
+          <textarea id="cfg-prompt" class="settings-textarea settings-textarea--tall" rows="12"></textarea>
+          <p class="settings-fielderr" id="cfg-prompt-err" style="display:none;">プロンプトに {articles} プレースホルダーが必要です。</p>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="btn-primary" id="settings-save-btn" onclick="saveSettings()">[ 保存する ]</button>
+      </div>
+    </div>
+
+    <div id="settings-toast" class="settings-toast" role="status" style="display:none;"></div>
+  </section>
+
+</main>
+
+<script>
+  /* ── Markdown Renderer ── */
+  function renderMarkdown(md) {
+    if (!md) return '';
+    const codeBlocks = [];
+    let s = md.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+      const highlighted = highlightCode(escHtml(code.trimEnd()), lang);
+      const label = lang ? `<span style="font-size:10px;color:#3A3A3A;display:block;margin-bottom:4px;">${escHtml(lang)}</span>` : '';
+      codeBlocks.push(`<pre>${label}<code>${highlighted}</code></pre>`);
+      return `\x00CODE${codeBlocks.length - 1}\x00`;
+    });
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^- (.+)$/gm, '<li>$1</li>');
+    s = s.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li>)|$)/g, '<ul>$1</ul>$2');
+    const parts = s.split(/\n{2,}/);
+    s = parts.map(p => {
+      if (/^\x00CODE\d+\x00$/.test(p.trim())) return p.trim();
+      if (/^<(h[23]|ul|ol|li|pre)/.test(p.trim())) return p.trim();
+      const inner = p.trim().replace(/\n/g, '<br>');
+      return inner ? `<p>${inner}</p>` : '';
+    }).join('\n');
+    s = s.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i, 10)]);
+    return s;
+  }
+
+  function highlightCode(code, lang) {
+    if (!lang || !['python', 'js', 'javascript', 'ts', 'typescript', 'bash', 'sh'].includes(lang.toLowerCase())) return code;
+    const l = lang.toLowerCase();
+    if (l === 'python') {
+      return code
+        .replace(/\b(def|class|import|from|return|if|elif|else|for|while|in|not|and|or|True|False|None|with|as|try|except|raise|pass|lambda|yield|async|await)\b/g, '<span class="tk-kw">$1</span>')
+        .replace(/(#[^\n]*)/g, '<span class="tk-cm">$1</span>')
+        .replace(/(&quot;.*?&quot;|&#39;.*?&#39;|f&quot;.*?&quot;)/g, '<span class="tk-str">$1</span>')
+        .replace(/\b(\d+\.?\d*)\b/g, '<span class="tk-nb">$1</span>');
+    }
+    if (l === 'js' || l === 'javascript' || l === 'ts' || l === 'typescript') {
+      return code
+        .replace(/\b(const|let|var|function|return|if|else|for|while|of|in|import|from|export|default|async|await|new|class|extends|typeof|null|undefined|true|false)\b/g, '<span class="tk-kw">$1</span>')
+        .replace(/(\/\/[^\n]*)/g, '<span class="tk-cm">$1</span>')
+        .replace(/(&quot;.*?&quot;|&#39;.*?&#39;|`.*?`)/g, '<span class="tk-str">$1</span>');
+    }
+    if (l === 'bash' || l === 'sh') {
+      return code
+        .replace(/^(\$\s)/gm, '<span class="tk-op">$1</span>')
+        .replace(/(#[^\n]*)/g, '<span class="tk-cm">$1</span>');
+    }
+    return code;
+  }
+
+  /* ── Utils ── */
+  const WEEKDAYS = ['日','月','火','水','木','金','土'];
+
+  function formatDate(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    const wd = WEEKDAYS[date.getDay()];
+    return `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')}（${wd}）`;
+  }
+
+  function categoryBadge(cat) {
+    const map = {
+      'ニュース':  ['badge-news',     'NEWS'],
+      '研究':      ['badge-research', 'RES '],
+      '活用事例':  ['badge-usecase',  'USE '],
+      'ツール':    ['badge-tool',     'TOOL'],
+    };
+    const [cls, tag] = map[cat] || ['badge-news', 'INFO'];
+    return `<span class="category-badge ${cls}">[${tag}]</span>`;
+  }
+
+  function sourceLabel(src) {
+    const map = {
+      'HackerNews':     'HackerNews',
+      'Reddit':         'Reddit',
+      'RSS':            'RSS',
+      'Zenn':           'Zenn/JP',
+      'HatenaBookmark': 'HatenaBookmark/JP',
+    };
+    return map[src] || src;
+  }
+
+  function importanceDots(score) {
+    const filled = '█'.repeat(score);
+    const empty  = '░'.repeat(5 - score);
+    return `<div class="importance-dots" role="img" aria-label="重要度 ${score}/5">
+      <span class="importance-label" aria-hidden="true">重要度</span>
+      <span class="importance-bar" aria-hidden="true"><span>${filled}</span><span class="empty-bar">${empty}</span></span>
+    </div>`;
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  /* ── State ── */
+  let currentDate = null;
+
+  /* ── Toggle Translation ── */
+  function toggleTranslation(idx) {
+    const panel = document.getElementById(`trans-panel-${idx}`);
+    const btn   = document.getElementById(`trans-btn-${idx}`);
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    btn.textContent = isOpen ? '[+ 全文翻訳]' : '[- 閉じる]';
+  }
+
+  /* ── Router ── */
+  function init() {
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get('date');
+    const q    = params.get('q');
+    const view = params.get('view');
+    if (view === 'settings') showSettings();
+    else if (date)           showDetail(date);
+    else if (q)              showSearch(q);
+    else                     showHome();
+  }
+
+  function activateScreen(id) {
+    ['scr-01','scr-02','scr-03','scr-04'].forEach(s =>
+      document.getElementById(s).classList.toggle('active', s === id));
+  }
+
+  function showHome() {
+    activateScreen('scr-01');
+    currentDate = null;
+    loadHome();
+  }
+  function showDetail(date) {
+    activateScreen('scr-02');
+    currentDate = date;
+    loadDetail(date);
+  }
+  function showSearch(q) {
+    activateScreen('scr-03');
+    currentDate = null;
+    loadSearch(q);
+  }
+  function showSettings() {
+    activateScreen('scr-04');
+    currentDate = null;
+    loadConfig();
+  }
+  function goHome() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('date');
+    url.searchParams.delete('q');
+    url.searchParams.delete('view');
+    window.history.pushState({}, '', url);
+    showHome();
+  }
+  function goDetail(date) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('date', date);
+    url.searchParams.delete('q');
+    url.searchParams.delete('view');
+    window.history.pushState({}, '', url);
+    showDetail(date);
+  }
+  function goSearch(q) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('q', q);
+    url.searchParams.delete('date');
+    url.searchParams.delete('view');
+    window.history.pushState({}, '', url);
+    showSearch(q);
+  }
+  function goSettings() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', 'settings');
+    url.searchParams.delete('date');
+    url.searchParams.delete('q');
+    window.history.pushState({}, '', url);
+    showSettings();
+  }
+  function handleSearchKey(e) {
+    if (e.key === 'Enter') {
+      const q = e.target.value.trim();
+      if (q) goSearch(q);
+    }
+  }
+  window.addEventListener('popstate', init);
+
+  /* ── Home ── */
+  async function loadHome() {
+    const states = { loading:'home-loading', content:'home-content', empty:'home-empty', error:'home-error' };
+    setVisible(states,'loading');
+    let index;
+    try {
+      const res = await fetch('./data/index.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status);
+      index = await res.json();
+    } catch (e) {
+      setVisible(states,'error');  // ERR-01
+      return;
+    }
+
+    updateRunHourDisplays();
+    const digests = index.digests || [];
+    if (digests.length === 0) { setVisible(states,'empty'); return; }
+
+    const byMonth = {};
+    for (const meta of digests) {
+      const ym = meta.date.slice(0, 7);
+      if (!byMonth[ym]) byMonth[ym] = [];
+      byMonth[ym].push(meta);
+    }
+    const months = Object.keys(byMonth).sort((a,b) => b.localeCompare(a));
+    const latestMonth = months[0];
+    const latestDate = digests[0].date;
+
+    const list = document.getElementById('date-list');
+    list.innerHTML = months.map(ym => {
+      const [y, m] = ym.split('-');
+      const metas = byMonth[ym];
+      const totalArticles = metas.reduce((sum, meta) => sum + (meta.count || 0), 0);
+      const isOpen = ym === latestMonth;
+
+      const cards = metas.map(meta => {
+        const date = meta.date;
+        const hasData = (meta.count || 0) > 0;
+        const count = hasData ? String(meta.count).padStart(2,'0') : '--';
+        const [yy, mm, dd] = date.split('-');
+        const wd = WEEKDAYS[new Date(+yy, +mm - 1, +dd).getDay()];
+        const isLatest = date === latestDate;
+
+        let catBarHtml;
+        const counts = meta.categories || {};
+        const order = [['ニュース','news'],['研究','research'],['活用事例','usecase'],['ツール','tool']];
+        if (hasData && order.some(([jp]) => counts[jp])) {
+          const segs = order.filter(([jp]) => counts[jp]).map(([jp, key]) =>
+            `<span class="cat-seg cat-seg--${key}" style="flex:${counts[jp]}"></span>`
+          ).join('');
+          const tooltipRows = order.filter(([jp]) => counts[jp]).map(([jp, key]) =>
+            `<span class="cat-bar-tooltip-row"><span class="cat-bar-tooltip-dot" style="background:var(--${key}-c)"></span>${jp} ${counts[jp]}件</span>`
+          ).join('');
+          catBarHtml = `<span class="cat-bar-wrap"><span class="cat-bar-tooltip">${tooltipRows}</span><span class="cat-bar">${segs}</span></span>`;
+        } else {
+          catBarHtml = `<span class="cat-bar-wrap"><span class="cat-bar"><span class="cat-seg cat-seg--empty" style="flex:1"></span></span></span>`;
+        }
+
+        return `
+          <a class="date-card${isLatest ? ' date-card--latest' : ''}${hasData ? '' : ' date-card--nodata'}" href="javascript:void(0)" onclick="goDetail('${date}')" tabindex="0" aria-label="${formatDate(date)} ${hasData ? count + '件' : 'データなし'}">
+            <span class="date-tile" aria-hidden="true">
+              <span class="date-tile-day">${dd}</span>
+              <span class="date-tile-wd">${wd}</span>
+            </span>
+            <span class="date-main">
+              <span class="date-main-top">
+                <span class="date-card-date">${yy}/${mm}/${dd}</span>
+                ${isLatest ? '<span class="latest-tag">● LATEST</span>' : ''}
+              </span>
+              <span aria-hidden="true">${catBarHtml}</span>
+            </span>
+            <span class="date-card-right">
+              <span class="article-count">[${count}]</span>
+              <span class="chevron" aria-hidden="true">›</span>
+            </span>
+          </a>`;
+      }).join('');
+
+      return `
+        <div class="month-group${isOpen ? ' open' : ''}" id="mg-${ym}">
+          <div class="month-header" onclick="toggleMonth('${ym}')" onkeydown="handleMonthKey(event,'${ym}')" role="button" tabindex="0" aria-expanded="${isOpen}">
+            <div class="month-rule"></div>
+            <div class="month-label">
+              <span class="month-chevron">›</span>
+              <span>${y}.${m}</span>
+              <span class="month-count">${metas.length}d / ${totalArticles}items</span>
+            </div>
+            <div class="month-rule month-rule-right"></div>
+          </div>
+          <div class="month-cards">${cards}</div>
+        </div>`;
+    }).join('');
+
+    setVisible(states,'content');
+  }
+
+  /* ── Detail ── */
+  async function loadDetail(date) {
+    const states = { loading:'detail-loading', content:'detail-content', error:'detail-error' };
+    setVisible(states,'loading');
+    let digest;
+    try {
+      const res = await fetch(`./data/${date}.json`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status);
+      digest = await res.json();
+    } catch (e) {
+      setVisible(states,'error');  // ERR-02 / ERR-03
+      return;
+    }
+
+    const articles = [...digest.articles].sort((a,b) => b.importance - a.importance);
+    document.getElementById('detail-title').textContent = `${formatDate(date)} / AI digest`;
+    document.getElementById('detail-sub').textContent = `${articles.length} articles — updated ${String(getRunHourJst()).padStart(2,'0')}:00 JST daily`;
+
+    document.getElementById('article-list').innerHTML = articles.map((art, idx) => {
+      const isFeature = art.importance >= 5;
+      const isCompact = art.importance <= 2;
+      const cardClass = isFeature ? 'article-card article-card--feature'
+                      : isCompact ? 'article-card article-card--compact'
+                      :             'article-card';
+
+      const transPanel = art.translation_ja
+        ? `<div class="translation-panel" id="trans-panel-${idx}">${renderMarkdown(art.translation_ja)}</div>`
+        : `<div class="translation-panel" id="trans-panel-${idx}"><p class="translation-unavailable">// 翻訳を取得できませんでした（ペイウォール等）</p></div>`;
+
+      return `
+      <article class="${cardClass}">
+        <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
+        <div class="article-body">
+          <div class="article-top">
+            <div class="article-top-left">
+              ${categoryBadge(art.category)}
+            </div>
+            ${importanceDots(art.importance)}
+          </div>
+          <h2 class="article-title"><span class="article-title-text">${escHtml(art.title_ja)}</span>${isFeature ? '<span class="featured-badge">!! FEATURED</span>' : ''}</h2>
+          <p class="article-summary">${escHtml(art.summary_ja)}</p>
+          <div class="article-footer">
+            <span class="source-badge">${escHtml(sourceLabel(art.source))}</span>
+            <div class="article-footer-actions">
+              <button class="action-btn action-btn--translate" id="trans-btn-${idx}" onclick="toggleTranslation(${idx})">[+ 全文翻訳]</button>
+              <a class="action-btn action-btn--read" href="${escHtml(art.url)}" target="_blank" rel="noopener noreferrer">[→ 元記事]</a>
+            </div>
+          </div>
+          ${transPanel}
+        </div>
+      </article>`;
+    }).join('');
+
+    setVisible(states,'content');
+  }
+
+  /* ── Month Toggle ── */
+  function toggleMonth(ym) {
+    const el = document.getElementById(`mg-${ym}`);
+    const isOpen = el.classList.contains('open');
+    el.classList.toggle('open', !isOpen);
+    el.querySelector('.month-header').setAttribute('aria-expanded', String(!isOpen));
+  }
+
+  function handleMonthKey(e, ym) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleMonth(ym);
+    }
+  }
+
+  /* ── Search ── */
+  async function loadSearch(q) {
+    const keywords = q.toLowerCase().split(/\s+/).filter(Boolean);
+
+    const headerEl  = document.getElementById('search-header');
+    const emptyEl   = document.getElementById('search-empty');
+    const resultsEl = document.getElementById('search-results');
+
+    let index;
+    try {
+      const res = await fetch('./data/index.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status);
+      index = await res.json();
+    } catch (e) {
+      headerEl.style.display = '';
+      resultsEl.innerHTML = '';
+      emptyEl.style.display = '';
+      document.getElementById('search-title').textContent = `grep "${q}"`;
+      document.getElementById('search-sub').textContent = '';
+      document.getElementById('search-empty-msg').textContent = 'データの読み込みに失敗しました。しばらく後に再試行してください。';
+      return;
+    }
+
+    // 全日次JSONを並列取得（一部失敗してもallSettledで続行）
+    const settled = await Promise.allSettled(
+      (index.digests || []).map(({ date }) =>
+        fetch(`./data/${date}.json`, { cache: 'no-store' }).then(r => {
+          if (!r.ok) throw new Error(r.status);
+          return r.json();
+        }).then(d => ({ date, digest: d }))
+      )
+    );
+
+    const hits = [];
+    for (const r of settled) {
+      if (r.status !== 'fulfilled') continue;
+      const { date, digest } = r.value;
+      for (const art of (digest.articles || [])) {
+        const haystack = [art.title_ja, art.summary_ja, art.category, sourceLabel(art.source)].join(' ').toLowerCase();
+        if (keywords.every(kw => haystack.includes(kw))) hits.push({ date, art });
+      }
+    }
+    hits.sort((a, b) => b.date.localeCompare(a.date));
+
+    document.getElementById('search-title').textContent = `grep "${q}"`;
+    document.getElementById('search-sub').textContent = `${hits.length} matches found`;
+
+    if (hits.length === 0) {
+      resultsEl.innerHTML = '';
+      emptyEl.style.display = '';
+      headerEl.style.display = '';
+      document.getElementById('search-empty-msg').textContent = `"${q}" に一致する記事が見つかりませんでした。`;
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    headerEl.style.display = '';
+    resultsEl.innerHTML = hits.map(({ date, art }, idx) => {
+      const sid = `sr-trans-${idx}`;
+      const transPanel = art.translation_ja
+        ? `<div class="translation-panel" id="${sid}">${renderMarkdown(art.translation_ja)}</div>`
+        : `<div class="translation-panel" id="${sid}"><p class="translation-unavailable">// 翻訳を取得できませんでした</p></div>`;
+
+      return `
+      <article class="article-card">
+        <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
+        <div class="article-body">
+          <div><span class="search-result-date">${date}</span></div>
+          <div class="article-top">
+            <div class="article-top-left">${categoryBadge(art.category)}</div>
+            ${importanceDots(art.importance)}
+          </div>
+          <h2 class="article-title">${escHtml(art.title_ja)}</h2>
+          <p class="article-summary">${escHtml(art.summary_ja)}</p>
+          <div class="article-footer">
+            <span class="source-badge">${escHtml(sourceLabel(art.source))}</span>
+            <div class="article-footer-actions">
+              <button class="action-btn action-btn--translate" id="${sid}-btn" onclick="toggleTranslationById('${sid}','${sid}-btn')">[+ 全文翻訳]</button>
+              <a class="action-btn action-btn--read" href="${escHtml(art.url)}" target="_blank" rel="noopener noreferrer">[→ 元記事]</a>
+            </div>
+          </div>
+          ${transPanel}
+        </div>
+      </article>`;
+    }).join('');
+
+    keywords.forEach(kw => highlightKeyword(resultsEl, kw));
+  }
+
+  function highlightKeyword(container, kw) {
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => n.parentElement.closest('pre,code,script,style') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(node => {
+      const idx = node.textContent.toLowerCase().indexOf(kw);
+      if (idx === -1) return;
+      const parent = node.parentNode;
+      if (!parent) return;
+      const before = document.createTextNode(node.textContent.slice(0, idx));
+      const mark   = document.createElement('mark');
+      mark.style.cssText = 'background:rgba(0,255,65,0.2);color:#00FF41;border-radius:0;padding:0 1px;';
+      mark.textContent   = node.textContent.slice(idx, idx + kw.length);
+      const after  = document.createTextNode(node.textContent.slice(idx + kw.length));
+      parent.replaceChild(after, node);
+      parent.insertBefore(mark, after);
+      parent.insertBefore(before, mark);
+    });
+  }
+
+  function toggleTranslationById(panelId, btnId) {
+    const panel = document.getElementById(panelId);
+    const btn   = document.getElementById(btnId);
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    btn.textContent = isOpen ? '[+ 全文翻訳]' : '[- 閉じる]';
+  }
+
+  /* ── Helpers ── */
+  function setVisible(states, active) {
+    Object.entries(states).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = key === active ? '' : 'none';
+    });
+  }
+
+  /* ── Settings (SCR-04 / FR-06) ── */
+  const GENRE_ORDER = ['ニュース','研究','活用事例','ツール'];
+
+  const DEFAULT_CONFIG_JS = {
+    genres: { 'ニュース': true, '研究': true, '活用事例': true, 'ツール': true },
+    sources: [
+      { name: 'Hacker News', url: 'https://hacker-news.firebaseio.com/v0/topstories.json', type: 'hackernews', enabled: true },
+      { name: 'Reddit r/artificial', url: 'https://www.reddit.com/r/artificial/top/.rss?t=day', type: 'reddit', enabled: true },
+      { name: 'Reddit r/MachineLearning', url: 'https://www.reddit.com/r/MachineLearning/top/.rss?t=day', type: 'reddit', enabled: true },
+      { name: 'TechCrunch AI', url: 'https://techcrunch.com/category/artificial-intelligence/feed/', type: 'rss', enabled: true },
+      { name: 'MIT Technology Review AI', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed', type: 'rss', enabled: true },
+      { name: 'VentureBeat AI', url: 'https://venturebeat.com/category/ai/feed/', type: 'rss', enabled: true },
+      { name: 'Zenn AI', url: 'https://zenn.dev/topics/ai/feed', type: 'zenn', enabled: true },
+      { name: 'はてなブックマーク IT', url: 'https://b.hatena.ne.jp/hotentry/it.rss', type: 'hatena', enabled: true }
+    ],
+    keywords: {
+      en: ['ai','llm','gpt','claude','gemini','openai','anthropic','machine learning','deep learning','neural','chatbot','agent','generative'],
+      ja: ['AI','LLM','GPT','Claude','Gemini','OpenAI','Anthropic','機械学習','生成AI','チャットボット','エージェント']
+    },
+    gemini_prompt: '以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n各記事について以下の形式でJSON配列を返してください。\n海外・日本語の両ソースからバランスよく選んでください。\n\n各記事のJSONフィールド：\n- url: 元記事のURLをそのまま返す（変更禁止）\n- title_ja: 日本語タイトル（30文字以内）\n- summary_ja: 日本語要約（80文字以内）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n- category: "ニュース" | "研究" | "活用事例" | "ツール" のいずれか\n- importance: 1〜5の整数（5が最重要）\n\n記事一覧:\n{articles}\n\nJSON配列のみを返してください。',
+    run_hour_jst: 13
+  };
+
+  const ERROR_MESSAGES = {
+    'ERR-08': 'GitHub PATの認証に失敗しました。PATが正しいか確認してください。',
+    'ERR-09': "PATにリポジトリへの書き込み権限がありません。スコープ 'repo' / 'workflow' を確認してください。",
+    'ERR-10': 'リポジトリが見つかりません。Owner / Repo の設定を確認してください。',
+    'ERR-11': '設定の保存に失敗しました。しばらく後に再試行してください。',
+    'ERR-13': "設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。"
+  };
+
+  let currentSha = null;       // ghGetConfig で取得した config.json の sha
+  let prevRunHourJst = 13;     // 最後にロードした run_hour_jst（変更検知用）
+
+  /* JST 時刻 → cron 式変換 */
+  function jstHourToCron(h) {
+    return `0 ${((h - 9) + 24) % 24} * * *`;
+  }
+
+  /* daily.yml の cron 式を更新する */
+  async function ghPutWorkflow(newCronExpr) {
+    const { owner, repo, pat } = getGithubCreds();
+    const getRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
+      { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (!getRes.ok) throw { code: 'ERR-13' };
+    const data = await getRes.json();
+    const current = decodeBase64Utf8(data.content);
+    const updated = current.replace(/cron:\s*'[^']*'/, `cron: '${newCronExpr}'`);
+    if (updated === current) throw { code: 'ERR-13' };
+    const jstH = (parseInt(newCronExpr.split(' ')[1]) + 9) % 24;
+    const putRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' },
+        body: JSON.stringify({
+          message: `chore: update schedule to ${String(jstH).padStart(2,'0')}:00 JST`,
+          content: encodeBase64Utf8(updated),
+          sha: data.sha
+        })
+      }
+    );
+    if (!putRes.ok) throw { code: 'ERR-13' };
+  }
+
+  /* 実行時刻（localStorage キャッシュ、デフォルト13） */
+  function getRunHourJst() {
+    const v = localStorage.getItem('neura_run_hour_jst');
+    return v !== null ? parseInt(v, 10) : 13;
+  }
+  function setRunHourCache(h) { localStorage.setItem('neura_run_hour_jst', h); }
+  function updateRunHourDisplays() {
+    const h = getRunHourJst();
+    const el = document.getElementById('home-sub');
+    if (el) el.textContent = `毎日${String(h).padStart(2,'0')}時に更新 — 海外・日本語ソースから厳選`;
+  }
+
+  /* localStorage 認証情報 */
+  function getGithubCreds() {
+    return {
+      owner: localStorage.getItem('neura_github_owner') || '',
+      repo:  localStorage.getItem('neura_github_repo')  || '',
+      pat:   localStorage.getItem('neura_github_pat')   || ''
+    };
+  }
+  function setGithubCreds({ owner, repo, pat }) {
+    if (owner !== undefined) localStorage.setItem('neura_github_owner', owner);
+    if (repo  !== undefined) localStorage.setItem('neura_github_repo',  repo);
+    if (pat   !== undefined) localStorage.setItem('neura_github_pat',   pat);
+  }
+
+  /* UTF-8 安全な Base64 */
+  function encodeBase64Utf8(str) { return btoa(unescape(encodeURIComponent(str))); }
+  function decodeBase64Utf8(b64) { return decodeURIComponent(escape(atob(b64))); }
+
+  /* GitHub Contents API */
+  async function ghGetConfig() {
+    const { owner, repo, pat } = getGithubCreds();
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/config/config.json`, {
+      headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' }
+    });
+    if (res.status === 401) throw { code: 'ERR-08' };
+    if (res.status === 403) throw { code: 'ERR-09' };
+    if (res.status === 404) return { config: DEFAULT_CONFIG_JS, sha: null };
+    if (!res.ok) throw { code: 'ERR-11' };
+    const data = await res.json();
+    return { config: JSON.parse(decodeBase64Utf8(data.content)), sha: data.sha };
+  }
+  async function ghPutConfig(config, sha) {
+    const { owner, repo, pat } = getGithubCreds();
+    const body = {
+      message: 'chore: update config via settings UI',
+      content: encodeBase64Utf8(JSON.stringify(config, null, 2))
+    };
+    if (sha) body.sha = sha;
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/config/config.json`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' },
+      body: JSON.stringify(body)
+    });
+    if (res.status === 401) throw { code: 'ERR-08' };
+    if (res.status === 403) throw { code: 'ERR-09' };
+    if (res.status === 404) throw { code: 'ERR-10' };
+    if (!res.ok) throw { code: 'ERR-11' };
+    return res.json();
+  }
+
+  /* 画面ロード */
+  async function loadConfig() {
+    const { owner, repo, pat } = getGithubCreds();
+    document.getElementById('cfg-owner').value = owner;
+    document.getElementById('cfg-repo').value = repo;
+    document.getElementById('cfg-pat').value = pat;
+    updateConnStatus();
+    hideToast();
+
+    if (!pat || !owner || !repo) {
+      showBanner('⚠ GitHub の Owner / Repo / PAT が未設定です。設定するとGitHubへの保存が有効になります。', false);
+      renderSettings(DEFAULT_CONFIG_JS);
+      document.getElementById('settings-save-btn').disabled = true;
+      return;
+    }
+
+    hideBanner();
+    try {
+      const { config, sha } = await ghGetConfig();
+      currentSha = sha;
+      if (typeof config.run_hour_jst === 'number') setRunHourCache(config.run_hour_jst);
+      renderSettings(config);
+      document.getElementById('settings-save-btn').disabled = false;
+    } catch (e) {
+      showBanner(ERROR_MESSAGES[e.code] || ERROR_MESSAGES['ERR-11'], true);
+      renderSettings(DEFAULT_CONFIG_JS);
+      document.getElementById('settings-save-btn').disabled = true;
+    }
+  }
+
+  function renderSettings(config) {
+    // genres
+    const genres = config.genres || {};
+    document.getElementById('cfg-genres').innerHTML = GENRE_ORDER.map(g => `
+      <label class="settings-check">
+        <input type="checkbox" data-genre="${g}" ${genres[g] !== false ? 'checked' : ''}>
+        <span>${g}</span>
+      </label>`).join('');
+
+    // sources
+    document.getElementById('cfg-sources').innerHTML = '';
+    (config.sources || []).forEach(s => addSourceRow(s.name, s.url, s.type, s.enabled));
+
+    // run_hour_jst — セレクトを生成（初回のみ）
+    const sel = document.getElementById('cfg-run-hour');
+    if (sel.options.length === 0) {
+      for (let h = 0; h < 24; h++) {
+        const opt = document.createElement('option');
+        opt.value = h;
+        opt.textContent = `${String(h).padStart(2,'0')}:00 JST`;
+        sel.appendChild(opt);
+      }
+    }
+    const runHour = typeof config.run_hour_jst === 'number' ? config.run_hour_jst : 13;
+    sel.value = runHour;
+    prevRunHourJst = runHour;
+
+    // keywords
+    const kw = config.keywords || { en: [], ja: [] };
+    document.getElementById('cfg-kw-en').value = (kw.en || []).join(', ');
+    document.getElementById('cfg-kw-ja').value = (kw.ja || []).join(', ');
+
+    // prompt
+    document.getElementById('cfg-prompt').value = config.gemini_prompt || '';
+    document.getElementById('cfg-prompt-err').style.display = 'none';
+  }
+
+  function addSourceRow(name = '', url = '', type = 'rss', enabled = true) {
+    const wrap = document.getElementById('cfg-sources');
+    const row = document.createElement('div');
+    row.className = 'source-row';
+    row.dataset.type = type;
+    row.innerHTML = `
+      <input type="checkbox" class="src-enabled" ${enabled ? 'checked' : ''} aria-label="有効">
+      <input type="text" class="src-name" value="${escHtml(name)}" placeholder="ソース名">
+      <input type="text" class="src-url" value="${escHtml(url)}" placeholder="https://...">
+      <span class="src-type">${escHtml(type)}</span>
+      <button class="src-del" onclick="this.closest('.source-row').remove()" aria-label="削除">✕</button>`;
+    wrap.appendChild(row);
+  }
+
+  function collectFormConfig() {
+    const genres = {};
+    document.querySelectorAll('#cfg-genres input[data-genre]').forEach(el => {
+      genres[el.dataset.genre] = el.checked;
+    });
+    const sources = [...document.querySelectorAll('#cfg-sources .source-row')].map(row => ({
+      name: row.querySelector('.src-name').value.trim(),
+      url: row.querySelector('.src-url').value.trim(),
+      type: row.dataset.type || 'rss',
+      enabled: row.querySelector('.src-enabled').checked
+    })).filter(s => s.name && s.url);
+    const splitKw = v => v.split(',').map(s => s.trim()).filter(Boolean);
+    return {
+      genres,
+      sources,
+      run_hour_jst: parseInt(document.getElementById('cfg-run-hour').value, 10),
+      keywords: {
+        en: splitKw(document.getElementById('cfg-kw-en').value),
+        ja: splitKw(document.getElementById('cfg-kw-ja').value)
+      },
+      gemini_prompt: document.getElementById('cfg-prompt').value
+    };
+  }
+
+  function saveGithubCreds() {
+    setGithubCreds({
+      owner: document.getElementById('cfg-owner').value.trim(),
+      repo:  document.getElementById('cfg-repo').value.trim(),
+      pat:   document.getElementById('cfg-pat').value.trim()
+    });
+    loadConfig();  // 再読込（接続できれば config を取得）
+  }
+  function clearPat() {
+    localStorage.removeItem('neura_github_pat');
+    document.getElementById('cfg-pat').value = '';
+    updateConnStatus();
+    loadConfig();
+  }
+
+  async function saveSettings() {
+    const config = collectFormConfig();
+    const errEl = document.getElementById('cfg-prompt-err');
+
+    // ERR-12: {articles} 必須
+    if (!config.gemini_prompt.includes('{articles}')) {
+      errEl.style.display = '';
+      document.getElementById('cfg-prompt').focus();
+      return;
+    }
+    errEl.style.display = 'none';
+
+    const { owner, repo, pat } = getGithubCreds();
+    if (!pat || !owner || !repo) {
+      showBanner('⚠ GitHub の Owner / Repo / PAT を先に保存してください。', true);
+      return;
+    }
+
+    const btn = document.getElementById('settings-save-btn');
+    btn.disabled = true;
+    btn.textContent = '[ 保存中... ]';
+
+    // config.json を保存する
+    try {
+      const { sha } = await ghGetConfig();
+      await ghPutConfig(config, sha);
+    } catch (e) {
+      showBanner(ERROR_MESSAGES[e.code] || ERROR_MESSAGES['ERR-11'], true);
+      btn.disabled = false;
+      btn.textContent = '[ 保存する ]';
+      return;
+    }
+
+    // run_hour_jst が変更された場合のみ daily.yml も更新する
+    if (config.run_hour_jst !== prevRunHourJst) {
+      try {
+        await ghPutWorkflow(jstHourToCron(config.run_hour_jst));
+        prevRunHourJst = config.run_hour_jst;
+        setRunHourCache(config.run_hour_jst);
+        updateRunHourDisplays();
+      } catch (e) {
+        showBanner(ERROR_MESSAGES['ERR-13'], true);  // config は保存済み
+        btn.disabled = false;
+        btn.textContent = '[ 保存する ]';
+        return;
+      }
+    }
+
+    hideBanner();
+    showToast('✅ 設定を保存しました。次回の定時実行から反映されます。');
+    btn.disabled = false;
+    btn.textContent = '[ 保存する ]';
+  }
+
+  function updateConnStatus() {
+    const { owner, repo, pat } = getGithubCreds();
+    const el = document.getElementById('conn-status');
+    if (owner && repo && pat) {
+      el.textContent = '✅ 接続済み（' + owner + '/' + repo + '）';
+      el.classList.add('is-ok');
+    } else {
+      el.textContent = '❌ 未接続';
+      el.classList.remove('is-ok');
+    }
+  }
+
+  function showBanner(msg, isError) {
+    const el = document.getElementById('settings-banner');
+    el.textContent = msg;
+    el.classList.toggle('is-error', !!isError);
+    el.style.display = '';
+  }
+  function hideBanner() { document.getElementById('settings-banner').style.display = 'none'; }
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById('settings-toast');
+    el.textContent = msg;
+    el.style.display = '';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.display = 'none'; }, 4000);
+  }
+  function hideToast() { document.getElementById('settings-toast').style.display = 'none'; }
+
+  /* ── Boot ── */
+  init();
+
+  /* ── Neural network visualization ── */
+  (function initNeuraViz() {
+    const canvas = document.getElementById('neura-canvas');
+    const statEl = document.getElementById('neura-stat');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ACCENT = '0,255,65';
+
+    let W = 0, H = 0, dpr = 1;
+    let layers = [];
+    let pulses = [];
+    let signalCount = 0;
+
+    function build() {
+      layers = [];
+      const counts = [3, 5, 5, 3];
+      const padX = 26, padTop = 18, padBot = 26;
+      const usableW = Math.max(W - padX * 2, 1);
+      const usableH = Math.max(H - padTop - padBot, 1);
+      counts.forEach((c, li) => {
+        const x = padX + usableW * (li / (counts.length - 1));
+        const nodes = [];
+        for (let i = 0; i < c; i++) {
+          const y = padTop + usableH * ((i + 0.5) / c);
+          nodes.push({ x, y, glow: 0 });
+        }
+        layers.push(nodes);
+      });
+    }
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      dpr = window.devicePixelRatio || 1;
+      W = rect.width; H = rect.height;
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      build();
+      if (reduce) drawStatic();
+    }
+
+    function spawnPulse() {
+      if (!layers.length) return;
+      const path = [];
+      path.push(layers[0][(Math.random() * layers[0].length) | 0]);
+      for (let li = 1; li < layers.length; li++) {
+        path.push(layers[li][(Math.random() * layers[li].length) | 0]);
+      }
+      pulses.push({ path, seg: 0, t: 0, speed: 0.018 + Math.random() * 0.014 });
+    }
+
+    function drawEdges() {
+      ctx.lineWidth = 1;
+      for (let li = 0; li < layers.length - 1; li++) {
+        layers[li].forEach(a => {
+          layers[li + 1].forEach(b => {
+            ctx.strokeStyle = `rgba(${ACCENT},0.045)`;
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.stroke();
+          });
+        });
+      }
+    }
+
+    function drawNodes() {
+      layers.forEach(nodes => {
+        nodes.forEach(n => {
+          const a = Math.min(1, 0.16 + n.glow);
+          ctx.fillStyle = `rgba(${ACCENT},${a})`;
+          if (n.glow > 0.08) {
+            ctx.shadowColor = `rgba(${ACCENT},${n.glow})`;
+            ctx.shadowBlur = 9;
+          }
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, 2.4 + n.glow * 1.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        });
+      });
+    }
+
+    function drawStatic() {
+      ctx.clearRect(0, 0, W, H);
+      drawEdges();
+      drawNodes();
+    }
+
+    function frame() {
+      ctx.clearRect(0, 0, W, H);
+      drawEdges();
+      pulses.forEach(p => {
+        p.t += p.speed;
+        const a = p.path[p.seg];
+        const b = p.path[p.seg + 1] || a;
+        if (p.t >= 1) {
+          p.t = 0; p.seg++;
+          if (p.path[p.seg]) p.path[p.seg].glow = 1;
+          if (p.seg >= p.path.length - 1) { p.done = true; signalCount++; }
+        }
+        const x = a.x + (b.x - a.x) * p.t;
+        const y = a.y + (b.y - a.y) * p.t;
+        ctx.strokeStyle = `rgba(${ACCENT},0.45)`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.fillStyle = `rgba(${ACCENT},0.95)`;
+        ctx.shadowColor = `rgba(${ACCENT},0.9)`;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(x, y, 2.1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+      pulses = pulses.filter(p => !p.done);
+      layers.forEach(nodes => nodes.forEach(n => { n.glow *= 0.93; }));
+      drawNodes();
+      if (statEl) {
+        statEl.innerHTML = `inference <b>active</b> · ${signalCount.toString().padStart(4, '0')} signals`;
+      }
+      requestAnimationFrame(frame);
+    }
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+    resize();
+
+    if (!reduce) {
+      if (statEl) statEl.innerHTML = `inference <b>active</b> · 0000 signals`;
+      setInterval(() => { if (pulses.length < 5) spawnPulse(); }, 520);
+      requestAnimationFrame(frame);
+    } else {
+      if (statEl) statEl.innerHTML = `inference <b>idle</b>`;
+    }
+  })();
+
+  /* ── Signal waveform visualization (detail header) ── */
+  (function initWaveViz() {
+    const canvas = document.getElementById('wave-canvas');
+    const statEl = document.getElementById('wave-stat');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const ACCENT = '0,255,65';
+
+    let W = 0, H = 0, dpr = 1, phase = 0;
+    // 3 layered waves: [amp, freq, speed, alpha]
+    const waves = [
+      { amp: 0.34, freq: 2.0, speed: 0.030, alpha: 0.5 },
+      { amp: 0.22, freq: 3.3, speed: 0.044, alpha: 0.3 },
+      { amp: 0.13, freq: 5.1, speed: 0.062, alpha: 0.22 }
+    ];
+
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      dpr = window.devicePixelRatio || 1;
+      W = rect.width; H = rect.height;
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (reduce) drawFrame(true);
+    }
+
+    function drawWave(w, t) {
+      const mid = H / 2;
+      const step = 4;
+      ctx.beginPath();
+      let headX = 0, headY = mid;
+      for (let x = 0; x <= W; x += step) {
+        const nx = x / W;
+        // envelope: taper amplitude near left edge (under text) and right edge
+        const env = Math.sin(Math.PI * Math.min(1, nx)) ;
+        const y = mid + Math.sin(nx * Math.PI * 2 * w.freq + t) * (H * w.amp) * env
+                      * (0.6 + 0.4 * Math.sin(t * 0.7 + nx * 3));
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        headX = x; headY = y;
+      }
+      ctx.strokeStyle = `rgba(${ACCENT},${w.alpha})`;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      return { x: headX, y: headY };
+    }
+
+    function drawFrame(stat) {
+      ctx.clearRect(0, 0, W, H);
+      // baseline
+      ctx.strokeStyle = `rgba(${ACCENT},0.06)`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+
+      let head = { x: W, y: H / 2 };
+      waves.forEach((w, i) => {
+        const h = drawWave(w, phase * (w.speed / waves[0].speed));
+        if (i === 0) head = h;
+      });
+      // leading glow dot on primary wave
+      ctx.fillStyle = `rgba(${ACCENT},0.95)`;
+      ctx.shadowColor = `rgba(${ACCENT},0.9)`;
+      ctx.shadowBlur = 9;
+      ctx.beginPath();
+      ctx.arc(head.x, head.y, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    function frame() {
+      phase += 0.05;
+      drawFrame();
+      if (statEl) {
+        const hz = (44.0 + Math.sin(phase * 0.4) * 3.5).toFixed(1);
+        statEl.innerHTML = `signal <b>locked</b> · ${hz} kHz`;
+      }
+      requestAnimationFrame(frame);
+    }
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+    resize();
+
+    if (!reduce) {
+      if (statEl) statEl.innerHTML = `signal <b>locked</b> · 44.0 kHz`;
+      requestAnimationFrame(frame);
+    } else {
+      if (statEl) statEl.innerHTML = `signal <b>idle</b>`;
+    }
+  })();
+</script>
+</body>
+</html>

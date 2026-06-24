@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# 環境変数（秘密情報。コミット禁止）
+.env
+.env.local
+
+# OS
+.DS_Store
+
+# 一時ファイル
+/tmp/neura_*.json

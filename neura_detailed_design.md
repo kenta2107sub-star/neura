@@ -1,0 +1,1255 @@
+# 詳細設計書
+
+> **プロジェクト名**：Neura
+> **対象フェーズ**：Phase 1（MVP）本実装用
+> **このドキュメントの用途**：Claude Codeが本実装（Pythonスクリプト・GitHub Actions・フロントエンド）を行うための仕様書。
+> **逆算元のファイル**：
+> - `neura_basic_design.md`（データモデル・画面仕様・エラー定義）
+> - `neura_requirements.md`（FR一覧・NF・エラー定義）
+> - `docs/index.html`（モックコード・コンポーネント構造・ダミーデータ形状）
+> **関連ドキュメント**：
+> - `neura_architecture.md`（技術スタック・ディレクトリ構成・環境変数）
+> **次のステップ**：このドキュメントと `neura_architecture.md` を渡して本実装を開始する
+
+---
+
+## 1. JSONファイルスキーマ（データ永続化層）
+
+本プロジェクトはDBを使用せず、JSONファイルをGitリポジトリに保存する。
+
+### 1-1. `docs/data/index.json`（日付インデックス）
+
+ホーム画面（SCR-01）が**1回のfetchで日付一覧・記事件数・カテゴリ分布バー**を描画できるよう、各日付のメタ情報（件数・カテゴリ内訳）を保持する。
+
+```json
+{
+  "digests": [
+    {
+      "date": "2026-06-18",
+      "count": 7,
+      "categories": { "ニュース": 3, "研究": 1, "活用事例": 1, "ツール": 2 }
+    },
+    {
+      "date": "2026-06-17",
+      "count": 5,
+      "categories": { "ニュース": 2, "ツール": 3 }
+    }
+  ]
+}
+```
+
+| フィールド | 型 | 必須 | 制約 | 説明 |
+|---|---|---|---|---|
+| `digests` | `DigestMeta[]` | ✅ | 降順ソート・最大100件 | 日次JSONが存在する日付のメタ情報一覧 |
+| `digests[].date` | `string` | ✅ | YYYY-MM-DD | 対象日付 |
+| `digests[].count` | `number` | ✅ | 0以上 | その日の記事件数 |
+| `digests[].categories` | `dict[str,int]` | ✅ | 存在するカテゴリのみ | カテゴリ別件数（0件のカテゴリはキーごと省略可） |
+
+- `archive.py` が毎日更新する（日次データから件数・カテゴリ内訳を集計して追記）
+- 100件を超えた場合は末尾（最古）から削除する
+- `docs/index.html` が起動時にfetchする
+- 検索（SCR-03）は `digests[].date` を列挙して各日次JSONを取得する
+
+---
+
+### 1-2. `docs/data/YYYY-MM-DD.json`（日次記事データ）
+
+```json
+{
+  "date": "2026-06-18",
+  "generated_at": "2026-06-18T04:00:00Z",
+  "articles": [
+    {
+      "title_ja": "OpenAI、GPT-5を正式リリース",
+      "summary_ja": "OpenAIが次世代モデルGPT-5を発表。推論能力が大幅に向上し...",
+      "translation_ja": "## OpenAI、GPT-5を正式リリース\n\nOpenAIは本日...\n\n```python\nclient.chat...\n```",
+      "category": "ニュース",
+      "importance": 5,
+      "url": "https://example.com/article",
+      "source": "HackerNews",
+      "published_at": "2026-06-18T03:00:00Z"
+    }
+  ]
+}
+```
+
+#### DailyDigest（ファイル全体）
+
+| フィールド | 型 | 必須 | 制約 | 説明 |
+|---|---|---|---|---|
+| `date` | `string` | ✅ | YYYY-MM-DD形式 | 対象日付 |
+| `generated_at` | `string` | ✅ | ISO 8601 UTC | GitHub Actionsの実行日時 |
+| `articles` | `Article[]` | ✅ | 5〜10件 | 記事オブジェクトの配列（重要度降順） |
+
+#### Article（記事オブジェクト）
+
+| フィールド | 型 | 必須 | 制約 | 説明 |
+|---|---|---|---|---|
+| `title_ja` | `string` | ✅ | 30文字以内 | 日本語タイトル（英語記事は翻訳済み） |
+| `summary_ja` | `string` | ✅ | 80文字以内 | 日本語要約 |
+| `translation_ja` | `string \| null` | ✅ | markdown形式 | 全文日本語翻訳。本文取得失敗時は `null` |
+| `category` | `string` | ✅ | 下記4値のいずれか | 記事カテゴリ |
+| `importance` | `number` | ✅ | 1〜5の整数 | 重要度スコア（5が最重要） |
+| `url` | `string` | ✅ | `https://` or `http://` で始まる | 元記事URL |
+| `source` | `string` | ✅ | 下記5値のいずれか | 情報ソース名 |
+| `published_at` | `string` | ✅ | ISO 8601 UTC | 元記事の公開日時 |
+
+**`category` の許容値**：`"ニュース"` / `"研究"` / `"活用事例"` / `"ツール"`
+
+**`source` の許容値**：`"HackerNews"` / `"Reddit"` / `"RSS"` / `"Zenn"` / `"HatenaBookmark"`
+
+**`translation_ja` の形式**：
+- コードブロックは ` ```言語名 ` で囲む（翻訳しない）
+- インラインコードは `` `backtick` `` で囲む（翻訳しない）
+- 見出しは `##` / `###` で構造を維持する
+- 箇条書きは `-` で保持する
+- 重要ワードは `**太字**` で保持する
+- URLリンクは除去してプレーンテキストにする
+
+---
+
+### 1-3. `config/config.json`（収集設定 / FR-06）
+
+リポジトリにデフォルト値を同梱し、設定画面（SCR-04）が GitHub Contents API で更新する。`collect.py`・`summarize.py` が起動時に読み込む。
+
+```json
+{
+  "genres": {
+    "ニュース": true,
+    "研究": true,
+    "活用事例": true,
+    "ツール": true
+  },
+  "sources": [
+    { "name": "Hacker News", "url": "https://hacker-news.firebaseio.com/v0/topstories.json", "type": "hackernews", "enabled": true },
+    { "name": "Reddit r/artificial", "url": "https://www.reddit.com/r/artificial/top/.rss?t=day", "type": "reddit", "enabled": true },
+    { "name": "Reddit r/MachineLearning", "url": "https://www.reddit.com/r/MachineLearning/top/.rss?t=day", "type": "reddit", "enabled": true },
+    { "name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "type": "rss", "enabled": true },
+    { "name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "type": "rss", "enabled": true },
+    { "name": "VentureBeat AI", "url": "https://venturebeat.com/category/ai/feed/", "type": "rss", "enabled": true },
+    { "name": "Zenn AI", "url": "https://zenn.dev/topics/ai/feed", "type": "zenn", "enabled": true },
+    { "name": "はてなブックマーク IT", "url": "https://b.hatena.ne.jp/hotentry/it.rss", "type": "hatena", "enabled": true }
+  ],
+  "keywords": {
+    "en": ["ai", "llm", "gpt", "claude", "gemini", "openai", "anthropic", "machine learning", "deep learning", "neural", "chatbot", "agent", "generative"],
+    "ja": ["AI", "LLM", "GPT", "Claude", "Gemini", "OpenAI", "Anthropic", "機械学習", "生成AI", "チャットボット", "エージェント"]
+  },
+  "gemini_prompt": "以下のAI関連記事から...\n\n記事一覧:\n{articles}",
+  "run_hour_jst": 13
+}
+```
+
+#### AppConfig（ファイル全体）
+
+| フィールド | 型 | 必須 | 制約 | 説明 |
+|---|---|---|---|---|
+| `genres` | `dict[str, bool]` | ✅ | キーは4カテゴリ名 | カテゴリON/OFF。summarize.py が無効カテゴリを除外する |
+| `sources` | `Source[]` | ✅ | 1件以上 | 収集ソース定義 |
+| `keywords.en` | `string[]` | ✅ | — | 海外ソース用フィルタキーワード |
+| `keywords.ja` | `string[]` | ✅ | — | はてブ用フィルタキーワード |
+| `gemini_prompt` | `string` | ✅ | `{articles}` を含む | Geminiプロンプトのテンプレート |
+| `run_hour_jst` | `number` | ✅ | 0〜23 の整数 | GitHub Actions の実行時刻（JST）。設定画面で変更すると `daily.yml` の cron も更新される |
+
+#### Source（ソース定義）
+
+| フィールド | 型 | 必須 | 制約 | 説明 |
+|---|---|---|---|---|
+| `name` | `string` | ✅ | — | 表示名 |
+| `url` | `string` | ✅ | — | 収集元URL |
+| `type` | `string` | ✅ | 下記5値 | パーサ振分けキー |
+| `enabled` | `boolean` | ✅ | — | `false` のソースは収集対象外 |
+
+**`type` の許容値**：`"hackernews"` / `"reddit"` / `"rss"` / `"zenn"` / `"hatena"`
+- `"rss"` と `"zenn"` はどちらも feedparser でパースする。違いは `"zenn"` がAIキーワードフィルタをスキップし `source="Zenn"` を付与する点
+- 設定画面からユーザーが追加できるのは `"rss"` のみ
+
+**フォールバック**：`config/config.json` が存在しない、またはパース失敗時は `config_loader.py` が上記デフォルト値を返す。
+
+---
+
+## 2. Pythonスクリプト仕様
+
+### 2-1. スクリプト間のデータ受け渡し方式
+
+各スクリプトは `/tmp/neura_*.json` のtempファイルで結果を受け渡す。
+
+```
+collect.py  → /tmp/neura_collected.json  → summarize.py
+summarize.py → /tmp/neura_summarized.json → notify.py + archive.py
+```
+
+---
+
+### 2-2. `scripts/config_loader.py`（FR-06）
+
+#### 役割
+`config/config.json` を読み込み `AppConfig` を返す。ファイル不在・JSONパース失敗時はデフォルト値を返す（クラッシュさせない）。`collect.py`・`summarize.py` から使用する。
+
+```python
+import json, os
+from schemas import AppConfig  # ※ scripts/schemas.py（types.pyは標準ライブラリと衝突するため不可）
+
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "config.json")
+
+DEFAULT_CONFIG: AppConfig = {
+    "genres": {"ニュース": True, "研究": True, "活用事例": True, "ツール": True},
+    "sources": [
+        {"name": "Hacker News", "url": "https://hacker-news.firebaseio.com/v0/topstories.json", "type": "hackernews", "enabled": True},
+        {"name": "Reddit r/artificial", "url": "https://www.reddit.com/r/artificial/top/.rss?t=day", "type": "reddit", "enabled": True},
+        {"name": "Reddit r/MachineLearning", "url": "https://www.reddit.com/r/MachineLearning/top/.rss?t=day", "type": "reddit", "enabled": True},
+        {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "type": "rss", "enabled": True},
+        {"name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "type": "rss", "enabled": True},
+        {"name": "VentureBeat AI", "url": "https://venturebeat.com/category/ai/feed/", "type": "rss", "enabled": True},
+        {"name": "Zenn AI", "url": "https://zenn.dev/topics/ai/feed", "type": "zenn", "enabled": True},
+        {"name": "はてなブックマーク IT", "url": "https://b.hatena.ne.jp/hotentry/it.rss", "type": "hatena", "enabled": True},
+    ],
+    "keywords": {
+        "en": ["ai", "llm", "gpt", "claude", "gemini", "openai", "anthropic", "machine learning", "deep learning", "neural", "chatbot", "agent", "generative"],
+        "ja": ["AI", "LLM", "GPT", "Claude", "Gemini", "OpenAI", "Anthropic", "機械学習", "生成AI", "チャットボット", "エージェント"],
+    },
+    "gemini_prompt": "（FR-02のデフォルトプロンプト全文。{articles} を含む）",
+}
+
+def load_config() -> AppConfig:
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            cfg = json.load(f)
+        # 必須キーが欠けている場合はデフォルトで補完する（部分マージ）
+        return {**DEFAULT_CONFIG, **cfg}
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"[WARN]  config: config.json not found/invalid, using defaults ({e})")
+        return DEFAULT_CONFIG
+```
+
+> `gemini_prompt` に `{articles}` が含まれない場合の保険：summarize.py 側で `{articles}` 不在を検知したらデフォルトプロンプトにフォールバックする（`[WARN]` ログ）。設定画面（SCR-04）でも保存前にバリデーションする（ERR-12）ため、通常は発生しない。
+
+---
+
+### 2-3. `scripts/collect.py`（FR-01）
+
+#### 役割
+config の `sources`（有効なもの）・`keywords` に従い、全ソースから並列でAI記事を収集し、フィルタ・重複排除・本文取得を行い `/tmp/neura_collected.json` に保存する。
+
+#### 処理フロー
+
+```python
+# 疑似コード（実装の設計意図を示す）
+from config_loader import load_config
+
+# typeごとのfetch関数ディスパッチ表
+def build_tasks(sources: list[Source]) -> list:
+    tasks = []
+    for s in sources:
+        if not s["enabled"]:
+            continue
+        t = s["type"]
+        if t == "hackernews":
+            tasks.append(fetch_hackernews(s["url"]))
+        elif t == "reddit":
+            tasks.append(fetch_reddit(s["url"]))      # urlにsubreddit情報を含む
+        elif t in ("rss", "zenn"):
+            tasks.append(fetch_rss(s["url"], t))      # zennはsource名・フィルタ扱いが異なる
+        elif t == "hatena":
+            tasks.append(fetch_hatena(s["url"]))
+        else:
+            print(f"[WARN]  collect: 未知のtype {t}（スキップ）")
+    return tasks
+
+async def main():
+    # 0. 設定を読み込む（FR-06）。不在時はデフォルト値
+    config = load_config()
+
+    # 1. 有効なソースのみ並列リクエスト（asyncio.gather）
+    # 各fetch関数はtry/exceptで例外を自前でハンドリングし、失敗時は [] を返す。
+    # return_exceptions=True はさらなるフェイルセーフ。
+    results = await asyncio.gather(
+        *build_tasks(config["sources"]),
+        return_exceptions=True
+    )
+    # flatten: リストのみ展開する（Exception オブジェクトはスキップする）
+
+    # 2. フラット化・AIキーワードフィルタ（config.keywords使用）・重複排除・ソース別ソート・上位30件
+    articles = filter_and_rank(flatten(results), config["keywords"])
+
+    # 3. 各記事URLから本文テキストを取得（trafilatura）
+    for article in articles:
+        article["body_text"] = fetch_body_text(article["url"])  # 失敗時はNone
+
+    # 4. /tmp/neura_collected.json に書き出し
+    save_json("/tmp/neura_collected.json", articles)
+```
+
+> **全ソースが無効（enabled全false）または該当ソースなしの場合**：`build_tasks` が空になり収集0件。`filter_and_rank` が空配列を返すため、`[ERROR] All sources failed` 相当として扱い exit(1) する（後続スクリプトを起動しない）。
+
+#### 各ソース取得関数の仕様
+
+**各 fetch_*() 関数の共通エラーハンドリングパターン**
+```python
+# 全ての fetch_*() 関数は以下のパターンに従う:
+# try:
+#     ... (HTTPリクエスト・パース処理)
+#     return articles  # CollectedArticle のリスト
+# except asyncio.TimeoutError:
+#     print(f"[WARN]  collect: {source_name} timeout（スキップ）")
+#     return []
+# except Exception as e:
+#     print(f"[WARN]  collect: {source_name} 取得失敗 {e}（スキップ）")
+#     return []
+```
+
+> 各fetch関数の引数 `url` は config の `sources[].url` をそのまま受け取る。これにより収集元URLの変更を設定画面（FR-06）から行える。
+
+**`fetch_hackernews(url: str)`**
+```python
+# 1. GET {url}（既定: https://hacker-news.firebaseio.com/v0/topstories.json）→ ID配列
+# 2. 上位100件のIDに対して並列で GET https://hacker-news.firebaseio.com/v0/item/{id}.json
+# 3. url が None（Ask HN等）はスキップ
+# 出力フィールド: title, url, source="HackerNews", score=item.score, published_at=item.time(unix→ISO)
+```
+
+> Reddit は `.json` がBotブロックされるため RSS（`/top/.rss?t=day`）を `fetch_rss(url, "Reddit")` で取得する（専用 fetch_reddit は廃止）。セッションに browser 風 User-Agent を設定すること。RSSのためスコアは無く日付系ランキング扱い。
+
+**`fetch_rss(feed_url: str, source: str)`**
+```python
+# HTTP取得は aiohttp、パースは feedparser.parse(bytes) を asyncio.to_thread で実行
+# source は "Reddit" | "RSS" | "Zenn" を呼び出し側から渡す
+# 出力フィールド: title=entry.title, url=entry.link, source=source, score=0, published_at=entry.published_parsed(→ISO)
+# AIキーワードフィルタは source=="Zenn" のみスキップ（filter_and_rank 側で判定）
+```
+
+**`fetch_hatena(url: str)`**
+```python
+# はてブは hotentry RSS（RDF）を feedparser で解析する（.json は302で存在しない）
+# GET {url}（既定: https://b.hatena.ne.jp/hotentry/it.rss）→ feedparser.parse(bytes)
+# 各 entry: title=entry.title, url=entry.link,
+#   score=int(entry.hatena_bookmarkcount or 0), published_at=entry.published_parsed(→ISO)
+# フィルタ: hatena_bookmarkcount >= 20 のエントリのみ採用（fetch_hatena 内で適用）
+#   ＋AIキーワード（日本語）は filter_and_rank 側で判定
+# 出力フィールド: title, url, source="HatenaBookmark", score=bookmarkcount, published_at
+```
+
+**`fetch_body_text(url: str) -> str | None`**
+```python
+# trafilatura.fetch_url(url, timeout=10) → HTML文字列
+# trafilatura.extract(html, include_comments=False, include_tables=False) → 本文テキスト
+# 失敗（None返却・例外）: return None
+# 成功: return body_text[:5000]  # 最大5000文字
+```
+
+#### `filter_and_rank` 関数の仕様
+
+```python
+def filter_and_rank(articles: list[CollectedArticle], keywords: dict) -> list[CollectedArticle]:
+    """
+    フィルタ・重複排除・ソートを行い、上位30件（スコア系20件・日付系10件）を返す。
+    スコア系（HN/HatenaBookmark）とdate系（Reddit/RSS/Zenn）は別々にソートして結合する。
+    RedditはRSS化でスコアを持たないため date系に含める。
+    score=0 の記事が単純スコアソートで沈まないようにするため分離する。
+    keywords は config の {"en": [...], "ja": [...]}。
+    """
+    # 1. URLバリデーション
+    articles = [a for a in articles if a["url"].startswith(("http://", "https://"))]
+
+    # 2. AIキーワードフィルタ（config.keywords使用）
+    articles = [a for a in articles if matches_ai_keyword(a["title"], a["source"], keywords)]
+
+    # 3. URL重複排除（正規化後に先着1件のみ残す）
+    seen: set[str] = set()
+    unique: list[CollectedArticle] = []
+    for a in articles:
+        key = a["url"].rstrip("/").split("?")[0]
+        if key not in seen:
+            seen.add(key)
+            unique.append(a)
+
+    # 4. ソース別に分離してソート
+    score_based = sorted(
+        [a for a in unique if a["source"] in ("HackerNews", "HatenaBookmark")],
+        key=lambda a: a["score"], reverse=True
+    )
+    date_based = sorted(
+        [a for a in unique if a["source"] in ("Reddit", "RSS", "Zenn")],
+        key=lambda a: a["published_at"], reverse=True
+    )
+
+    # 5. スコア系最大20件・日付系最大10件を結合（計最大30件）
+    return score_based[:20] + date_based[:10]
+```
+
+#### AIキーワードフィルタ定義
+
+キーワードは config（`config.keywords`）から取得する。デフォルト値は `config_loader.DEFAULT_CONFIG` および requirements.md FR-01 を参照。
+
+```python
+def matches_ai_keyword(title: str, source: str, keywords: dict) -> bool:
+    # keywords = {"en": [...], "ja": [...]}（configから渡される）
+    if source == "Zenn":
+        return True  # Zennはaiタグフィードのためフィルタ不要
+    kw_list = keywords["ja"] if source == "HatenaBookmark" else keywords["en"]
+    return any(kw.lower() in title.lower() for kw in kw_list)
+```
+
+#### 出力ファイル形式（`/tmp/neura_collected.json`）
+
+```json
+[
+  {
+    "title": "OpenAI releases GPT-5",
+    "url": "https://example.com/article",
+    "source": "HackerNews",
+    "score": 1523,
+    "published_at": "2026-06-18T03:00:00Z",
+    "body_text": "OpenAI today released GPT-5, its next-generation..."
+  },
+  {
+    "title": "Zennで学ぶRAGの最新実装パターン",
+    "url": "https://zenn.dev/example/rag",
+    "source": "Zenn",
+    "score": 0,
+    "published_at": "2026-06-18T01:00:00Z",
+    "body_text": null
+  }
+]
+```
+
+#### エラーハンドリング
+
+| 状況 | 挙動 |
+|---|---|
+| 特定ソースがタイムアウト（10秒） | `[WARN] {source} timeout` をログ出力してそのソースをスキップ |
+| 全ソースが失敗 | `[ERROR] All sources failed` をログ出力してexit(1)（後続スクリプトが起動しない） |
+| 本文取得の失敗（個別URL） | `body_text: null` として続行（記事自体はスキップしない） |
+
+---
+
+### 2-4. `scripts/summarize.py`（FR-02）
+
+#### 役割
+`/tmp/neura_collected.json` を読み込み、Gemini Flash APIで要約・全文翻訳・カテゴリ・重要度を生成し、`/tmp/neura_summarized.json` に保存する。
+
+#### 処理フロー
+
+```python
+from config_loader import load_config
+
+def main():
+    config = load_config()                       # FR-06：設定を読み込む
+    articles = load_json("/tmp/neura_collected.json")
+
+    prompt = build_prompt(articles, config["gemini_prompt"])
+
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(
+        prompt,
+        generation_config=genai.GenerationConfig(
+            response_mime_type="application/json",  # JSONモードで出力を強制
+            temperature=0.3,                         # 一貫性を優先
+        ),
+        request_options={"timeout": 30}
+    )
+
+    result = json.loads(response.text)  # パース失敗→例外→exit(1)
+
+    # FR-06：無効カテゴリ(genres=false)を除外してから重要度上位を選定する。
+    # category は Gemini が付与するため、絞り込みは分類後（ここ）で行う。
+    enabled = {g for g, on in config["genres"].items() if on}
+    result = [r for r in result if r.get("category") in enabled]
+    if not result:
+        print("[WARN]  summarize: 有効カテゴリの記事が0件（genres設定を確認）")
+    result_sorted = sorted(result, key=lambda x: x["importance"], reverse=True)[:10]
+
+    # 元記事のURLとpublished_atを対応付け
+    # GeminiがURLを微変更（末尾スラッシュ・クエリパラメータ追加等）する場合に備えて
+    # 末尾スラッシュ除去・クエリパラメータ除去で正規化してから照合する
+    def normalize_url(url: str) -> str:
+        return url.rstrip("/").split("?")[0]
+
+    url_map = {normalize_url(a["url"]): a for a in articles}
+    for item in result_sorted:
+        original = url_map.get(normalize_url(item["url"]), {})
+        if not original:
+            print(f"[WARN]  summarize: URL照合失敗 → {item['url']}")
+        item["source"] = original.get("source", "")
+        item["published_at"] = original.get("published_at", "")
+
+    save_json("/tmp/neura_summarized.json", result_sorted)
+```
+
+#### Geminiへのプロンプト（完全版）
+
+プロンプト本文は config（`config.gemini_prompt`）のテンプレートを使い、`{articles}` を記事一覧テキストに置換する。テンプレートのデフォルト全文は requirements.md FR-06 / 下記参照。
+
+```python
+def build_prompt(articles: list[dict], template: str) -> str:
+    articles_text = "\n\n".join([
+        f"[{i+1}] タイトル: {a['title']}\nURL: {a['url']}\nソース: {a['source']}\n"
+        f"本文: {a['body_text'][:3000] if a['body_text'] else '（本文取得不可）'}"
+        for i, a in enumerate(articles)
+    ])
+
+    # config由来のテンプレートに {articles} が無い場合はデフォルトにフォールバック
+    if "{articles}" not in template:
+        print("[WARN]  summarize: gemini_prompt に {articles} が無いためデフォルトを使用")
+        template = DEFAULT_GEMINI_PROMPT  # config_loader.DEFAULT_CONFIG["gemini_prompt"]
+
+    return template.replace("{articles}", articles_text)
+```
+
+**`DEFAULT_GEMINI_PROMPT`（テンプレート全文。`config_loader.DEFAULT_CONFIG["gemini_prompt"]` の実体）**
+```
+以下のAI関連記事から、最も重要・興味深い5〜10件を選び、
+各記事について以下の形式でJSON配列を返してください。
+海外・日本語の両ソースからバランスよく選んでください。
+
+各記事のJSONフィールド：
+- url: 元記事のURLをそのまま返す（変更禁止）
+- title_ja: 日本語タイトル（30文字以内。元が日本語の場合はそのまま使用）
+- summary_ja: 日本語要約（80文字以内）
+- translation_ja: 記事本文の全文日本語翻訳（markdown形式）
+    - コードブロックは ```言語名 で囲んでそのまま保持（翻訳しない）
+    - インラインコード（関数名・変数名・ライブラリ名）は `backtick` で囲んでそのまま保持
+    - 見出しは ## / ### で構造を維持する
+    - 箇条書きは - で保持する
+    - 重要ワードは **太字** で保持する
+    - URLリンクは除去してプレーンテキストにする
+    - 本文が「（本文取得不可）」の場合は null を返す
+- category: "ニュース" | "研究" | "活用事例" | "ツール" のいずれか
+- importance: 1〜5の整数（5が最重要。AI業界への影響度・新規性・実用性で判断）
+
+記事一覧:
+{articles}
+
+JSON配列のみを返してください。説明文・マークダウンの囲み・前後の文章は不要です。
+```
+
+#### 出力ファイル形式（`/tmp/neura_summarized.json`）
+
+```json
+[
+  {
+    "url": "https://example.com/article",
+    "title_ja": "OpenAI、GPT-5を正式リリース",
+    "summary_ja": "OpenAIが次世代モデルGPT-5を発表。推論能力が大幅に向上し...",
+    "translation_ja": "## OpenAI、GPT-5を正式リリース\n\n...",
+    "category": "ニュース",
+    "importance": 5,
+    "source": "HackerNews",
+    "published_at": "2026-06-18T03:00:00Z"
+  }
+]
+```
+
+#### エラーハンドリング
+
+| 状況 | 挙動 |
+|---|---|
+| `GEMINI_API_KEY` 未設定 | `[ERROR] GEMINI_API_KEY is not set` をログ出力してexit(1) |
+| Gemini APIタイムアウト（30秒） | `[ERROR] Gemini API timeout` をログ出力してexit(1) |
+| JSONパース失敗 | `[ERROR] Failed to parse Gemini response` をログ出力してexit(1) |
+| 選出件数が5件未満 | そのまま続行（`[WARN] Only {n} articles selected`） |
+
+---
+
+### 2-5. `scripts/notify.py`（FR-03）
+
+#### 役割
+`/tmp/neura_summarized.json` を読み込み、Discord Webhookにサマリーを投稿する。
+
+#### Discord Embed構造
+
+```python
+def build_discord_payload(articles: list[dict], date: str) -> dict:
+    CATEGORY_EMOJI = {
+        "ニュース": "🗞️",
+        "研究": "🔬",
+        "活用事例": "💡",
+        "ツール": "🛠️",
+    }
+    SOURCE_LABEL = {
+        "HackerNews": "HackerNews",
+        "Reddit": "Reddit",
+        "RSS": "RSS",
+        "Zenn": "Zenn 🇯🇵",
+        "HatenaBookmark": "はてブ 🇯🇵",
+    }
+
+    fields = []
+    for art in articles:
+        emoji = CATEGORY_EMOJI.get(art["category"], "📄")
+        source = SOURCE_LABEL.get(art["source"], art["source"])
+        fields.append({
+            "name": f"{emoji} {art['title_ja']}",
+            "value": f"{art['summary_ja']}\n[{source}]({art['url']})",
+            "inline": False
+        })
+
+    return {
+        "embeds": [{
+            "title": f"🧠 Neura Daily — {date}（{len(articles)}件）",
+            "color": 0x7c6aff,  # アクセントパープル
+            "fields": fields,
+            "footer": {"text": "Neura by GitHub Actions"},
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }]
+    }
+```
+
+#### 送信処理
+
+```python
+def main():
+    articles = load_json("/tmp/neura_summarized.json")
+    date = datetime.utcnow().strftime("%Y/%m/%d")
+
+    webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
+    if not webhook_url:
+        print("[ERROR] DISCORD_WEBHOOK_URL is not set")
+        sys.exit(1)
+
+    payload = build_discord_payload(articles, date)
+    response = requests.post(webhook_url, json=payload, timeout=10)
+
+    if response.status_code != 204:
+        print(f"[ERROR] Discord webhook failed: {response.status_code}")
+        sys.exit(1)
+
+    print(f"[INFO] Discord notified: {len(articles)} articles")
+```
+
+#### エラーハンドリング
+
+| 状況 | 挙動 |
+|---|---|
+| `DISCORD_WEBHOOK_URL` 未設定 | `[ERROR] DISCORD_WEBHOOK_URL is not set` をログ出力してexit(1) |
+| HTTPステータスが204以外 | `[ERROR] Discord webhook failed: {status}` をログ出力してexit(1) |
+
+---
+
+### 2-6. `scripts/archive.py`（FR-04）
+
+#### 役割
+`/tmp/neura_summarized.json` を読み込み、日次JSONファイルの生成・`index.json` 更新・gitコミット＆プッシュを行う。
+
+#### 処理フロー
+
+```python
+def main():
+    articles = load_json("/tmp/neura_summarized.json")
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    generated_at = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # 1. 日次JSONを生成
+    daily_data = {
+        "date": today,
+        "generated_at": generated_at,
+        "articles": articles
+    }
+    daily_path = f"docs/data/{today}.json"
+    save_json(daily_path, daily_data)
+    print(f"[INFO] Created {daily_path}")
+
+    # 2. index.jsonを更新（件数・カテゴリ内訳を集計して追記）
+    from collections import Counter
+    cats = Counter(a["category"] for a in articles)
+    meta = {"date": today, "count": len(articles), "categories": dict(cats)}
+
+    index_path = "docs/data/index.json"
+    index = load_json(index_path) if os.path.exists(index_path) else {"digests": []}
+    # 同一日付の既存エントリを除去してから先頭に追加（再実行で重複させない）
+    index["digests"] = [d for d in index["digests"] if d["date"] != today]
+    index["digests"].insert(0, meta)           # 先頭に追加（降順を維持）
+    index["digests"] = index["digests"][:100]  # 最大100件
+    save_json(index_path, index)
+    print(f"[INFO] Updated index.json: {len(index['digests'])} digests")
+
+    # 3. git commit & push
+    run_git_commands(today)
+
+def run_git_commands(today: str):
+    commands = [
+        ["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"],
+        ["git", "config", "user.name", "github-actions[bot]"],
+        ["git", "add", "docs/data/"],
+        ["git", "commit", "-m", f"chore: add daily digest {today}"],
+        ["git", "push"],
+    ]
+    for cmd in commands:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"[ERROR] Git command failed: {' '.join(cmd)}")
+            print(result.stderr)
+            sys.exit(1)
+```
+
+#### エラーハンドリング
+
+| 状況 | 挙動 |
+|---|---|
+| `git commit` 失敗 | `[ERROR] Git command failed` をログ出力してexit(1) |
+| `git push` が non-fast-forward で失敗 | 設定画面（FR-06）が同タイミングで `config/config.json` を更新した場合に発生し得る。`[ERROR]` をログ出力してexit(1)。翌日のcronで再実行される（実装で `git pull --rebase` 後に再pushを1回試みてもよい） |
+
+---
+
+## 3. フロントエンド仕様（`docs/index.html`）
+
+### 3-1. 画面・関数マップ
+
+| 画面 | URLパラメータ | 主要関数 |
+|---|---|---|
+| SCR-01：ホーム | なし | `showHome()` → `loadHome()` → `renderHome(index)` |
+| SCR-02：日次詳細 | `?date=YYYY-MM-DD` | `showDetail(date)` → `loadDetail(date)` → `renderDetail(digest)` |
+| SCR-03：検索結果 | `?q=キーワード` | `showSearch(q)` → `loadSearch(q)` → `renderSearch(q, allArticles)` |
+| SCR-04：設定 | `?view=settings` | `showSettings()` → `loadConfig()` → `renderSettings(config)` |
+
+**共通ユーティリティ関数**
+
+| 関数 | 用途 |
+|---|---|
+| `toggleTranslation(idx)` | SCR-02の翻訳パネルを展開/折りたたむ |
+| `toggleTranslationById(panelId, btnId)` | SCR-03の翻訳パネルを展開/折りたたむ |
+| `toggleMonth(ym)` | SCR-01の月グループを展開/折りたたむ |
+| `matchesQuery(art, keywords)` | SCR-03のAND検索マッチ判定 |
+| `renderMarkdown(md)` | markdown文字列をHTML文字列に変換（翻訳パネル内で使用） |
+| `highlightKeyword(container, kw)` | SCR-03の検索結果内キーワードを紫色ハイライト |
+| `goHome()` / `goDetail(date)` / `goSearch(q)` / `goSettings()` | HistoryAPI を使った画面遷移 |
+| `ghGetConfig()` / `ghPutConfig(config)` | GitHub Contents API で config.json を取得/更新（SCR-04・FR-06） |
+| `ghGetWorkflow()` / `ghPutWorkflow(cronExpr)` | GitHub Contents API で daily.yml の cron 式を取得/更新（SCR-04・FR-06） |
+| `jstHourToCron(hour)` | JST 時刻（0〜23）を UTC cron 式（`'0 {utc} * * *'`）に変換 |
+| `getGithubCreds()` / `setGithubCreds()` | localStorage の owner/repo/PAT を読み書き（SCR-04・FR-06） |
+
+### 3-2. ルーター
+
+```javascript
+// URLパラメータを読んで適切な画面を表示する
+function init() {
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get('date');
+    const q    = params.get('q');
+    const view = params.get('view');
+    if (view === 'settings') showSettings();
+    else if (date)           showDetail(date);
+    else if (q)              showSearch(q);
+    else                     showHome();
+}
+
+window.addEventListener('popstate', init);  // ブラウザ戻る/進む対応
+```
+
+### 3-3. データ取得関数
+
+本実装では `/tmp` ではなく `docs/data/` からfetchする。
+
+```javascript
+// index.jsonを取得してSCR-01を描画する
+async function loadHome() {
+    try {
+        const res = await fetch('./data/index.json');
+        if (!res.ok) throw new Error(res.status);
+        const index = await res.json();
+        renderHome(index);
+    } catch (e) {
+        showState('home', 'error');
+    }
+}
+
+// 日次JSONを取得してSCR-02を描画する
+async function loadDetail(date) {
+    try {
+        const res = await fetch(`./data/${date}.json`);
+        if (!res.ok) throw new Error(res.status);
+        const digest = await res.json();
+        renderDetail(digest);
+    } catch (e) {
+        showState('detail', 'error');
+    }
+}
+
+// 全日付のJSONを並列fetchしてSCR-03を描画する
+async function loadSearch(q) {
+    showState('search', 'loading');
+    try {
+        const indexRes = await fetch('./data/index.json');
+        const index = await indexRes.json();
+
+        // 全日次JSONを並列取得（一部失敗してもallSettledで続行）
+        const digests = await Promise.allSettled(
+            index.digests.map(({ date }) =>
+                fetch(`./data/${date}.json`).then(r => r.json()).then(d => ({ date, digest: d }))
+            )
+        );
+
+        const allArticles = digests
+            .filter(r => r.status === 'fulfilled')
+            .flatMap(r => r.value.digest.articles.map(art => ({ ...art, date: r.value.date })));
+
+        renderSearch(q, allArticles);
+    } catch (e) {
+        showState('search', 'error');
+    }
+}
+
+// SCR-03のAND検索ロジック（renderSearch内で使用）
+// q をスペース区切りで分割し、全キーワードが haystack に含まれる記事のみ返す（AND検索）
+// 検索対象フィールド: title_ja, summary_ja, category, source（translation_ja は対象外）
+function matchesQuery(art, keywords) {
+    const haystack = [art.title_ja, art.summary_ja, art.category, sourceLabel(art.source)]
+        .join(' ').toLowerCase();
+    return keywords.every(kw => haystack.includes(kw));
+}
+// 呼び出し例:
+//   const keywords = q.toLowerCase().split(/\s+/).filter(Boolean);
+//   const hits = allArticles.filter(art => matchesQuery(art, keywords));
+```
+
+### 3-4. 状態管理
+
+```javascript
+// 各画面の表示状態を切り替えるヘルパー
+// stateは 'loading' | 'content' | 'empty' | 'error' のいずれか
+function showState(screen, state) { ... }
+
+// 現在表示中の日付（SCR-02で使用）
+let currentDate = null;
+```
+
+### 3-5. markdownレンダラー（インライン実装）
+
+外部ライブラリを使用せず、以下の記法のみをサポートする。
+
+| markdown記法 | 変換先HTML |
+|---|---|
+| ` ```lang\n...\n``` ` | `<pre><code>...</code></pre>`（シンタックスハイライト付き） |
+| `` `code` `` | `<code>code</code>` |
+| `**text**` | `<strong>text</strong>` |
+| `## 見出し` | `<h2>見出し</h2>` |
+| `### 見出し` | `<h3>見出し</h3>` |
+| `- item` | `<ul><li>item</li></ul>` |
+| 空行区切り | `<p>...</p>` |
+
+**シンタックスハイライト対応言語**：`python` / `javascript`（エイリアス `js`） / `typescript`（エイリアス `ts`） / `bash`（エイリアス `sh`）（トークンベースの簡易実装）
+
+### 3-6. 翻訳パネルのトグル
+
+SCR-02 用（記事インデックスで管理）とSCR-03 用（ID文字列で管理）の2種類がある。
+
+```javascript
+// SCR-02 用：記事インデックス番号でパネルを特定する
+function toggleTranslation(idx) {
+    const panel = document.getElementById(`trans-panel-${idx}`);
+    const btn   = document.getElementById(`trans-btn-${idx}`);
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    btn.textContent = isOpen ? '▼ 全文翻訳を見る' : '▲ 閉じる';
+}
+
+// SCR-03 用：検索結果は記事インデックスが動的に変わるためIDを直接渡す
+// panelId: "sr-trans-{idx}"  /  btnId: "sr-trans-{idx}-btn"
+function toggleTranslationById(panelId, btnId) {
+    const panel = document.getElementById(panelId);
+    const btn   = document.getElementById(btnId);
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open', !isOpen);
+    btn.textContent = isOpen ? '▼ 全文翻訳を見る' : '▲ 閉じる';
+}
+```
+
+### 3-7. SCR-01：月別折りたたみ
+
+```javascript
+// 日付を月（YYYY-MM）でグループ化して月ヘッダーとカードを生成する
+function renderHome(index) {
+    // index.digests: [{date, count, categories}, ...]（降順）
+    const byMonth = groupByMonth(index.digests);  // { "2026-06": [{date,count,categories}, ...] }
+    const latestMonth = Object.keys(byMonth).sort().reverse()[0];
+    // 各カードは meta.count と meta.categories から件数・カテゴリ分布バーを描画する
+    // 最新月のみ自動展開、過去月は折りたたんだ状態で表示する
+}
+
+function toggleMonth(ym) {
+    const el = document.getElementById(`mg-${ym}`);
+    el.classList.toggle('open');
+}
+```
+
+### 3-8. SCR-04：設定画面（FR-06）
+
+#### GitHub接続情報（localStorage）
+
+```javascript
+// owner / repo / PAT は localStorage にのみ保存する（config.jsonには含めない）
+function getGithubCreds() {
+    return {
+        owner: localStorage.getItem('neura_github_owner') || '',
+        repo:  localStorage.getItem('neura_github_repo')  || '',
+        pat:   localStorage.getItem('neura_github_pat')   || '',
+    };
+}
+function setGithubCreds({ owner, repo, pat }) {
+    if (owner !== undefined) localStorage.setItem('neura_github_owner', owner);
+    if (repo  !== undefined) localStorage.setItem('neura_github_repo',  repo);
+    if (pat   !== undefined) localStorage.setItem('neura_github_pat',   pat);
+}
+function clearGithubPat() { localStorage.removeItem('neura_github_pat'); }
+```
+
+#### config.json の取得（GitHub Contents API）
+
+```javascript
+// 戻り値: { config: AppConfig, sha: string }
+// sha は更新（PUT）時に必要なので保持する
+async function ghGetConfig() {
+    const { owner, repo, pat } = getGithubCreds();
+    const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/config/config.json`,
+        { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (res.status === 401) throw { code: 'ERR-08' };
+    if (res.status === 403) throw { code: 'ERR-09' };
+    if (res.status === 404) {
+        // リポジトリは存在するがconfig.json未作成 → デフォルトで初期化（shaなし）
+        // リポジトリ自体が無い場合も404になり得る。owner/repo設定の確認を促す。
+        return { config: DEFAULT_CONFIG_JS, sha: null };
+    }
+    if (!res.ok) throw { code: 'ERR-11' };
+    const data = await res.json();
+    const config = JSON.parse(decodeBase64Utf8(data.content));  // atob + UTF-8デコード
+    return { config, sha: data.sha };
+}
+```
+
+#### config.json の更新（GitHub Contents API）
+
+```javascript
+async function ghPutConfig(config, sha) {
+    const { owner, repo, pat } = getGithubCreds();
+    const body = {
+        message: 'chore: update config via settings UI',
+        content: encodeBase64Utf8(JSON.stringify(config, null, 2)),  // UTF-8→Base64
+        ...(sha ? { sha } : {})   // 既存ファイル更新時のみshaを付与
+    };
+    const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/config/config.json`,
+        {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' },
+            body: JSON.stringify(body)
+        }
+    );
+    if (res.status === 401) throw { code: 'ERR-08' };
+    if (res.status === 403) throw { code: 'ERR-09' };
+    if (res.status === 404) throw { code: 'ERR-10' };
+    if (!res.ok) throw { code: 'ERR-11' };
+    return await res.json();
+}
+```
+
+> **Base64とUTF-8の注意**：日本語を含むJSONを `btoa()` に直接渡すと文字化けする。`encodeBase64Utf8` は `btoa(unescape(encodeURIComponent(str)))`、`decodeBase64Utf8` は `decodeURIComponent(escape(atob(str)))` 相当の実装とする（またはTextEncoder/TextDecoderを使用）。
+
+#### daily.yml の cron 式更新（GitHub Contents API）
+
+```javascript
+// JST 時刻（0〜23）→ UTC cron 式に変換
+function jstHourToCron(jstHour) {
+    const utcHour = ((jstHour - 9) + 24) % 24;
+    return `0 ${utcHour} * * *`;
+}
+
+// daily.yml を取得して cron 式を書き換え、PUT する
+async function ghPutWorkflow(newCronExpr) {
+    const { owner, repo, pat } = getGithubCreds();
+    // 1. 現在の daily.yml を取得
+    const getRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
+        { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (!getRes.ok) throw { code: 'ERR-13' };
+    const data = await getRes.json();
+    const currentContent = decodeBase64Utf8(data.content);
+
+    // 2. cron 式を正規表現で置換（'0 X * * *' 形式を想定）
+    const updated = currentContent.replace(
+        /cron:\s*'[^']*'/,
+        `cron: '${newCronExpr}'`
+    );
+    if (updated === currentContent) throw { code: 'ERR-13' };  // 置換できなかった場合
+
+    // 3. PUT で更新（workflow スコープが必要）
+    const jstHour = (parseInt(newCronExpr.split(' ')[1]) + 9) % 24;
+    const putRes = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
+        {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' },
+            body: JSON.stringify({
+                message: `chore: update schedule to ${String(jstHour).padStart(2,'0')}:00 JST`,
+                content: encodeBase64Utf8(updated),
+                sha: data.sha
+            })
+        }
+    );
+    if (!putRes.ok) throw { code: 'ERR-13' };
+}
+```
+
+#### 保存フロー（バリデーション含む）
+
+```javascript
+async function saveSettings(config, prevRunHourJst) {
+    // ERR-12: プロンプトに {articles} が必須
+    if (!config.gemini_prompt.includes('{articles}')) {
+        showFieldError('gemini_prompt', 'ERR-12');
+        return;
+    }
+    const { pat } = getGithubCreds();
+    if (!pat) { showBanner('PAT未設定'); return; }   // 保存ボタンは通常disabled
+
+    try {
+        const { sha } = await ghGetConfig();   // 最新shaを取得
+        await ghPutConfig(config, sha);
+    } catch (e) {
+        showBanner(ERROR_MESSAGES[e.code] || ERROR_MESSAGES['ERR-11']);
+        return;
+    }
+
+    // run_hour_jst が変更された場合のみ daily.yml も更新する
+    if (config.run_hour_jst !== prevRunHourJst) {
+        try {
+            await ghPutWorkflow(jstHourToCron(config.run_hour_jst));
+        } catch (e) {
+            showBanner(ERROR_MESSAGES['ERR-13']);  // config は保存済みのため return しない
+        }
+    }
+
+    showToast('✅ 設定を保存しました。次回の定時実行から反映されます。');
+}
+```
+
+#### デフォルト設定（フロントエンド）
+
+`DEFAULT_CONFIG_JS` は config.json が未作成（404）の場合にフォームへ表示する初期値。requirements.md FR-06 / detailed_design §1-3 のデフォルト値と同一内容をJSオブジェクトで保持する。
+
+---
+
+## 4. 型定義
+
+### 4-1. Python TypedDict（`scripts/`共通）
+
+```python
+# scripts/schemas.py（共通型定義ファイル。types.pyは標準ライブラリと衝突するため不可）
+from typing import TypedDict, Optional
+
+class Source(TypedDict):
+    name: str
+    url: str
+    type: str            # "hackernews" | "reddit" | "rss" | "zenn" | "hatena"
+    enabled: bool
+
+class Keywords(TypedDict):
+    en: list[str]
+    ja: list[str]
+
+class AppConfig(TypedDict):
+    genres: dict[str, bool]   # {"ニュース": True, "研究": True, "活用事例": True, "ツール": True}
+    sources: list[Source]
+    keywords: Keywords
+    gemini_prompt: str        # {articles} プレースホルダーを含む
+    run_hour_jst: int         # 0〜23（JST）。設定画面で変更すると daily.yml も更新される
+
+class CollectedArticle(TypedDict):
+    title: str
+    url: str
+    source: str          # "HackerNews" | "Reddit" | "RSS" | "Zenn" | "HatenaBookmark"
+    score: int
+    published_at: str    # ISO 8601 UTC
+    body_text: Optional[str]
+
+class Article(TypedDict):
+    title_ja: str
+    summary_ja: str
+    translation_ja: Optional[str]
+    category: str        # "ニュース" | "研究" | "活用事例" | "ツール"
+    importance: int      # 1〜5
+    url: str
+    source: str
+    published_at: str
+
+class DailyDigest(TypedDict):
+    date: str            # YYYY-MM-DD
+    generated_at: str    # ISO 8601 UTC
+    articles: list[Article]
+
+class DigestMeta(TypedDict):
+    date: str                  # YYYY-MM-DD
+    count: int                 # その日の記事件数
+    categories: dict[str, int] # カテゴリ別件数（存在するカテゴリのみ）
+
+class DigestIndex(TypedDict):
+    digests: list[DigestMeta]  # 降順・最大100件
+```
+
+### 4-2. フロントエンド型（JSDoc形式）
+
+```javascript
+/**
+ * @typedef {Object} Article
+ * @property {string} title_ja
+ * @property {string} summary_ja
+ * @property {string|null} translation_ja  - markdown形式。取得失敗時はnull
+ * @property {"ニュース"|"研究"|"活用事例"|"ツール"} category
+ * @property {number} importance  - 1〜5
+ * @property {string} url
+ * @property {"HackerNews"|"Reddit"|"RSS"|"Zenn"|"HatenaBookmark"} source
+ * @property {string} published_at  - ISO 8601 UTC
+ */
+
+/**
+ * @typedef {Object} DailyDigest
+ * @property {string} date  - YYYY-MM-DD
+ * @property {string} generated_at  - ISO 8601 UTC
+ * @property {Article[]} articles
+ */
+
+/**
+ * @typedef {Object} DigestMeta
+ * @property {string} date  - YYYY-MM-DD
+ * @property {number} count  - その日の記事件数
+ * @property {Object.<string, number>} categories  - カテゴリ別件数
+ *
+ * @typedef {Object} DigestIndex
+ * @property {DigestMeta[]} digests  - 降順・最大100件
+ */
+
+/**
+ * SCR-03専用：日付情報を付加した記事型
+ * @typedef {Article & { date: string }} ArticleWithDate
+ */
+
+/**
+ * SCR-04専用：収集設定（config/config.json）
+ * @typedef {Object} Source
+ * @property {string} name
+ * @property {string} url
+ * @property {"hackernews"|"reddit"|"rss"|"zenn"|"hatena"} type
+ * @property {boolean} enabled
+ *
+ * @typedef {Object} AppConfig
+ * @property {Object.<string, boolean>} genres
+ * @property {Source[]} sources
+ * @property {{en: string[], ja: string[]}} keywords
+ * @property {string} gemini_prompt  - {articles} プレースホルダーを含む
+ * @property {number} run_hour_jst  - 0〜23（JST）
+ */
+```
+
+---
+
+## 5. `requirements.txt`
+
+```
+aiohttp==3.9.5
+feedparser==6.0.11
+trafilatura==1.12.2
+google-generativeai==0.7.2
+requests==2.31.0
+```
+
+> trafilatura は 1.8.0 だと依存（htmldate / lxml.html.clean）が現行 lxml と衝突するため 1.12.2 に更新済み。`fetch_url` / `extract` の API は同一。
+
+---
+
+## 6. GitHub Actions ワークフロー詳細（`.github/workflows/daily.yml`）
+
+```yaml
+name: Neura Daily Digest
+
+on:
+  schedule:
+    - cron: '0 4 * * *'    # 毎日04:00 UTC = 13:00 JST
+  workflow_dispatch:         # 手動実行（テスト用）
+
+jobs:
+  daily-digest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # git push のために必要
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'       # requirements.txtをキャッシュして高速化
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Collect articles (FR-01)
+        run: python scripts/collect.py
+        # 失敗時: 後続ステップはすべてスキップされる（exit(1)による）
+
+      - name: Summarize with Gemini (FR-02)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/summarize.py
+
+      - name: Notify Discord (FR-03)
+        continue-on-error: true   # Discord失敗でもarchive.pyを必ず実行する
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/notify.py
+
+      - name: Archive to GitHub Pages (FR-04)
+        run: python scripts/archive.py
+        # GITHUB_TOKEN はcheckout時に自動設定されるため env: 不要
+```
+
+---
+
+## 7. エラー定義一覧
+
+| エラーID | 対応FR | 発生箇所 | 発生条件 | 挙動 |
+|---|---|---|---|---|
+| ERR-01 | FR-05 | フロントエンド | `index.json` のfetch失敗 | SCR-01にエラーメッセージを表示 |
+| ERR-02 | FR-05 | フロントエンド | 存在しない `?date=` を指定 | SCR-02にエラーメッセージ＋「← 一覧に戻る」を表示 |
+| ERR-03 | FR-05 | フロントエンド | 当日13時前にアクセス（JSONがまだ存在しない） | ERR-02と同じメッセージを表示 |
+| ERR-04 | FR-01 | `collect.py` | 全収集ソースが失敗 | `[ERROR] All sources failed` をログ出力してexit(1) |
+| ERR-05 | FR-02 | `summarize.py` | Gemini APIタイムアウト・パース失敗 | `[ERROR]` をログ出力してexit(1)、Discord通知なし |
+| ERR-06 | FR-03 | `notify.py` | Discord Webhook失敗 | `[ERROR]` をログ出力してexit(1) |
+| ERR-07 | FR-04 | `archive.py` | gitコミット失敗 | `[ERROR]` をログ出力してexit(1) |
+| ERR-08 | FR-06 | フロントエンド（SCR-04） | GitHub API 401（PAT認証失敗） | バナー表示：`"GitHub PATの認証に失敗しました。PATが正しいか確認してください。"` |
+| ERR-09 | FR-06 | フロントエンド（SCR-04） | GitHub API 403（権限不足） | バナー表示：`"PATにリポジトリへの書き込み権限がありません。スコープ 'repo' を確認してください。"` |
+| ERR-10 | FR-06 | フロントエンド（SCR-04） | GitHub API 404（リポジトリ未発見） | バナー表示：`"リポジトリが見つかりません。Owner / Repo の設定を確認してください。"` |
+| ERR-11 | FR-06 | フロントエンド（SCR-04） | その他HTTP/ネットワークエラー | バナー表示：`"設定の保存に失敗しました。しばらく後に再試行してください。"` |
+| ERR-12 | FR-06 | フロントエンド（SCR-04） | プロンプトに `{articles}` が無い | プロンプト欄直下に表示：`"プロンプトに {articles} プレースホルダーが必要です。"`（API呼び出しなし） |
+| ERR-13 | FR-06 | フロントエンド（SCR-04） | `.github/workflows/daily.yml` の PUT 失敗（権限不足・置換失敗等） | バナー表示：`"設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。"`（config.json は保存済み） |
+
+> ERR-04〜07はすべてGitHub Actionsのログおよびワークフロー失敗通知で検知する。
+> - ERR-04・ERR-05：Pythonスクリプトのexit(1)によりワークフローが失敗状態になる。GitHub Actionsのデフォルト失敗通知（メール等）で検知する
+> - ERR-06：`continue-on-error: true` により後続のarchive.pyは実行される。Discordへのエラー通知はDiscord自体が宛先のため実装しない
+> - ERR-07：gitコミット失敗はGitHub Actionsのステップログで確認する
+> - ERR-08〜12：設定画面（SCR-04）のブラウザ内エラー。バナーまたはフィールド直下に表示する。
+> - なお `config/config.json` の不在・パース失敗はエラーではなくデフォルト値で続行する（`config_loader.py`・`[WARN]`）。
+
+---
+
+## 8. ログ出力規則
+
+全スクリプトで以下のフォーマットを統一する。
+
+```python
+print(f"[INFO]  collect: HackerNews → 12件取得")
+print(f"[INFO]  collect: フィルタ後 → 8件")
+print(f"[WARN]  collect: Reddit timeout（スキップ）")
+print(f"[INFO]  summarize: Gemini → 7件選出")
+print(f"[INFO]  notify: Discord通知完了")
+print(f"[INFO]  archive: docs/data/2026-06-18.json 生成")
+print(f"[INFO]  archive: index.json 更新（30件）")
+print(f"[ERROR] summarize: Gemini APIタイムアウト")
+```
+
+GitHubのActionsタブでステップごとのログを確認できる。
