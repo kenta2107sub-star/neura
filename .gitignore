@@ -13,5 +13,8 @@ venv/
 # OS
 .DS_Store
 
+# Claude Code 設定（コミット禁止）
+CLAUDE.md
+
 # 一時ファイル
 /tmp/neura_*.json
