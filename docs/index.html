@@ -429,36 +429,43 @@
       padding: 32px 0;
       transition: background 0.1s;
       display: flex;
-      gap: 16px;
+      position: relative;
+      overflow: hidden;
     }
     .article-ln {
-      flex-shrink: 0;
-      width: 2.5ch;
+      width: 18px;
       text-align: right;
       color: var(--sub-light);
       font-size: 12px;
       user-select: none;
-      padding-top: 1px;
+      flex-shrink: 0;
       transition: color 0.1s;
     }
     .article-card:hover .article-ln { color: var(--accent); }
-    .article-body { flex: 1; min-width: 0; }
+    .article-body { flex: 1; min-width: 0; padding-left: 26px; }
 
     /* Featured (importance 5) */
     .article-card--feature {
       border-bottom: 1px solid var(--border);
     }
     .article-card--feature .article-title { color: var(--text-bright); }
-    .featured-badge {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      color: #000;
+    .article-card--feature .article-top { margin-top: 28px; }
+    .article-ribbon {
+      position: absolute;
+      top: 14px;
+      left: -26px;
+      width: 96px;
       background: var(--accent);
-      padding: 1px 6px;
-      vertical-align: middle;
-      text-shadow: none;
+      color: #000;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-align: center;
+      padding: 3px 0;
+      transform: rotate(-45deg);
+      transform-origin: center center;
+      white-space: nowrap;
+      pointer-events: none;
     }
 
     /* Compact (importance 1-2) */
@@ -473,11 +480,12 @@
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 8px;
+      margin-left: -26px;
     }
     .article-top-left {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .category-badge {
@@ -1514,12 +1522,12 @@
 
       return `
       <article class="${cardClass}">
-        <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
+        ${isFeature ? '<div class="article-ribbon" aria-hidden="true">FEATURED</div>' : ''}
         <div class="article-body">
           <div class="article-top">
             <div class="article-top-left">
+              <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
               ${categoryBadge(art.category)}
-              ${isFeature ? '<span class="featured-badge">!! FEATURED</span>' : ''}
             </div>
             ${importanceDots(art.importance)}
           </div>
@@ -1618,15 +1626,16 @@
         ? `<div class="translation-panel" id="${sid}">${renderMarkdown(art.translation_ja)}</div>`
         : `<div class="translation-panel" id="${sid}"><p class="translation-unavailable">// 翻訳を取得できませんでした</p></div>`;
 
+      const srIsFeature = art.importance >= 5;
       return `
-      <article class="article-card">
-        <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
+      <article class="article-card${srIsFeature ? ' article-card--feature' : ''}">
+        ${srIsFeature ? '<div class="article-ribbon" aria-hidden="true">FEATURED</div>' : ''}
         <div class="article-body">
           <div><span class="search-result-date">${date}</span></div>
           <div class="article-top">
             <div class="article-top-left">
+              <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
               ${categoryBadge(art.category)}
-              ${art.importance >= 5 ? '<span class="featured-badge">!! FEATURED</span>' : ''}
             </div>
             ${importanceDots(art.importance)}
           </div>
