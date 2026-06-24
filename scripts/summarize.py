@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 
 from config_loader import DEFAULT_GEMINI_PROMPT, load_config
 from schemas import Article, CollectedArticle
@@ -73,18 +74,26 @@ def main() -> None:
 
     client = genai.Client(api_key=api_key)
 
-    try:
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.3,
-            ),
-        )
-    except Exception as e:
-        # タイムアウト含む API 呼び出し失敗
-        print(f"[ERROR] Gemini API failed: {e}")
+    max_retries = 3
+    retry_wait = 30  # seconds
+    response = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3,
+                ),
+            )
+            break
+        except Exception as e:
+            print(f"[WARN]  summarize: Gemini API attempt {attempt}/{max_retries} failed: {e}")
+            if attempt < max_retries:
+                time.sleep(retry_wait)
+    if response is None:
+        print("[ERROR] Gemini API failed after all retries")
         sys.exit(1)
 
     try:
