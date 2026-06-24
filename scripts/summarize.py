@@ -72,6 +72,8 @@ def main() -> None:
     prompt = build_prompt(articles, config["gemini_prompt"])
 
     client = genai.Client(api_key=api_key)
+    print(f"[DEBUG] genai module: {genai.__file__}")
+    print(f"[DEBUG] model: {MODEL_NAME}")
 
     try:
         response = client.models.generate_content(

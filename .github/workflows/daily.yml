@@ -24,7 +24,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt && pip show google-genai google-generativeai 2>&1 || true
 
       - name: Collect articles (FR-01)
         run: python scripts/collect.py
