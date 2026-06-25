@@ -47,6 +47,18 @@
       "url": "https://b.hatena.ne.jp/hotentry/it.rss",
       "type": "hatena",
       "enabled": true
+    },
+    {
+      "name": "Qiita AI",
+      "url": "https://qiita.com/tags/ai/feed",
+      "type": "zenn",
+      "enabled": true
+    },
+    {
+      "name": "ITmedia AI+",
+      "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
+      "type": "rss",
+      "enabled": true
     }
   ],
   "notify_schedules": [
