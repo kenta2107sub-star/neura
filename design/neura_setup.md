@@ -178,7 +178,7 @@ cat /tmp/neura_collected.json | python -m json.tool | head -40
 python scripts/summarize.py
 # → [INFO] ログが表示され、/tmp/neura_summarized.json が生成されればOK
 cat /tmp/neura_summarized.json | python -m json.tool
-# → title_ja・summary_ja・translation_ja・category・importance を含むJSON（5〜10件）が確認できればOK
+# → title_ja・summary_ja・translation_ja・category・importance を含むJSON（最大15件）が確認できればOK
 
 # 6. Discord通知の単体確認（手順5の後に実行）
 python scripts/notify.py

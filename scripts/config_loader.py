@@ -16,7 +16,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "config.js
 # Gemini プロンプトのデフォルトテンプレート（{articles} を含む）。
 # config.json の gemini_prompt と同一内容を保つこと。
 DEFAULT_GEMINI_PROMPT = (
-    "以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n"
+    "以下のAI関連記事から、最も重要・興味深い最大15件を選び、\n"
     "各記事について以下の形式でJSON配列を返してください。\n"
     "海外・日本語の両ソースからバランスよく選んでください。\n\n"
     "各記事のJSONフィールド：\n"

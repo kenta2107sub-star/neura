@@ -61,7 +61,7 @@
         └──→ Gemini Flash API（google-generativeai）
               gemini-1.5-flash / 1リクエストで要約・カテゴリ・重要度を生成
                         |
-                        ↓ 最終記事オブジェクト（5〜10件）
+                        ↓ 最終記事オブジェクト（スロットフィルタ後 1〜10件）
         ┌───────────────┴───────────────┐
         ↓                               ↓
 [notify.py]                      [archive.py]

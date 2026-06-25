@@ -79,14 +79,14 @@
 |---|---|---|---|---|
 | `date` | `string` | ✅ | YYYY-MM-DD形式 | 対象日付 |
 | `generated_at` | `string` | ✅ | ISO 8601 UTC | GitHub Actionsの実行日時 |
-| `articles` | `Article[]` | ✅ | 5〜10件 | 記事オブジェクトの配列（重要度降順） |
+| `articles` | `Article[]` | ✅ | スロット設定による（1〜10件） | 記事オブジェクトの配列（重要度降順） |
 
 #### Article（記事オブジェクト）
 
 | フィールド | 型 | 必須 | 制約 | 説明 |
 |---|---|---|---|---|
 | `title_ja` | `string` | ✅ | 30文字以内 | 日本語タイトル（英語記事は翻訳済み） |
-| `summary_ja` | `string` | ✅ | 80文字以内 | 日本語要約 |
+| `summary_ja` | `string` | ✅ | 150文字以内 | 日本語要約 |
 | `translation_ja` | `string \| null` | ✅ | markdown形式 | 全文日本語翻訳。本文取得失敗時は `null` |
 | `category` | `string` | ✅ | 下記4値のいずれか | 記事カテゴリ |
 | `importance` | `number` | ✅ | 1〜5の整数 | 重要度スコア（5が最重要） |
@@ -568,7 +568,7 @@ def build_prompt(articles: list[dict], template: str) -> str:
 
 **`DEFAULT_GEMINI_PROMPT`（テンプレート全文。`config_loader.DEFAULT_CONFIG["gemini_prompt"]` の実体）**
 ```
-以下のAI関連記事から、最も重要・興味深い5〜10件を選び、
+以下のAI関連記事から、最も重要・興味深い最大15件を選び、
 各記事について以下の形式でJSON配列を返してください。
 海外・日本語の両ソースからバランスよく選んでください。
 
