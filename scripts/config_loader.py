@@ -50,6 +50,8 @@ DEFAULT_CONFIG: AppConfig = {
         {"name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "type": "rss", "enabled": True},
         {"name": "VentureBeat AI", "url": "https://venturebeat.com/category/ai/feed/", "type": "rss", "enabled": True},
         {"name": "Zenn AI", "url": "https://zenn.dev/topics/ai/feed", "type": "zenn", "enabled": True},
+        {"name": "Qiita AI", "url": "https://qiita.com/tags/ai/feed", "type": "zenn", "enabled": True},
+        {"name": "ITmedia AI+", "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", "type": "rss", "enabled": True},
         {"name": "はてなブックマーク IT", "url": "https://b.hatena.ne.jp/hotentry/it.rss", "type": "hatena", "enabled": True},
     ],
     "keywords": {
