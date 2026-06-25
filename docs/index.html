@@ -951,11 +951,19 @@
     .settings-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
     .settings-check input { accent-color: var(--accent); width: 14px; height: 14px; }
     .settings-sources { display: flex; flex-direction: column; gap: 8px; }
+    .source-header { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--sub); padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+    .source-header .sh-cb { width: 14px; flex-shrink: 0; }
+    .source-header .sh-name { width: 160px; flex-shrink: 0; }
+    .source-header .sh-url { flex: 1; min-width: 0; }
+    .source-header .sh-type { width: 84px; flex-shrink: 0; text-align: center; }
     .source-row { display: flex; align-items: center; gap: 10px; }
     .source-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
-    .source-row .src-name { font-size: 12px; color: var(--text); width: 160px; flex-shrink: 0; box-sizing: border-box; }
+    .source-row .src-name {
+      font-size: 12px; color: var(--text); width: 160px; flex-shrink: 0; box-sizing: border-box;
+      background: var(--surface); border: 1px solid var(--border-mid); padding: 5px 8px; font-family: inherit;
+    }
     .source-row .src-url {
-      flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border);
+      flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border-mid);
       color: var(--sub); font-family: inherit; font-size: 11px; padding: 5px 8px; box-sizing: border-box;
     }
     .source-row .src-type { font-size: 10px; color: var(--sub); border: 1px solid var(--border-mid); padding: 2px 6px; width: 84px; text-align: center; flex-shrink: 0; box-sizing: border-box; }
@@ -1154,6 +1162,12 @@
       <!-- ソース -->
       <div class="settings-section">
         <h2 class="settings-h2">## 収集ソース</h2>
+        <div class="source-header">
+          <span class="sh-cb"></span>
+          <span class="sh-name">ソース名</span>
+          <span class="sh-url">URL</span>
+          <span class="sh-type">タイプ</span>
+        </div>
         <div class="settings-sources" id="cfg-sources"></div>
         <button class="action-btn action-btn--translate" style="margin-top:10px;" onclick="addSourceRow()">[ + RSSソースを追加 ]</button>
       </div>
