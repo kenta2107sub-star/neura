@@ -975,6 +975,7 @@
       font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; flex-shrink: 0;
     }
     .source-row .src-del:hover { color: var(--error); border-color: var(--error); }
+    .src-status-badge { font-size: 10px; color: var(--warn); white-space: nowrap; flex-shrink: 0; display: none; }
     .schedule-list { display: flex; flex-direction: column; gap: 10px; }
     .slot-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
     .slot-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); }
@@ -1165,7 +1166,6 @@
       <!-- ソース -->
       <div class="settings-section">
         <h2 class="settings-h2">## 収集ソース</h2>
-        <div id="src-run-status" class="run-status" style="display:none;"></div>
         <p class="settings-fielderr" id="src-url-err" style="display:none;">URLが未入力またはhttps://で始まっていないソースがあります。</p>
         <div class="source-header">
           <span class="sh-cb"></span>
@@ -1180,6 +1180,7 @@
       <!-- 実行スケジュール（ジャンル・件数はスロット毎に設定） -->
       <div class="settings-section">
         <h2 class="settings-h2">## 実行スケジュール</h2>
+        <div id="src-run-status" class="run-status" style="display:none;"></div>
         <div id="cfg-schedules" class="schedule-list"></div>
         <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）</p>
         <p class="settings-fielderr" id="cfg-sched-err" style="display:none;margin-top:4px;">少なくとも1つのスケジュールを有効にしてください。</p>
@@ -1873,6 +1874,7 @@
       renderSettings(config);
       document.getElementById('settings-save-btn').disabled = false;
       fetchLastRunStatus();
+      fetchSourceStatus();
     } catch (e) {
       showBanner(ERROR_MESSAGES[e.code] || ERROR_MESSAGES['ERR-11'], true);
       renderSettings(DEFAULT_CONFIG_JS);
@@ -1953,7 +1955,8 @@
       <input type="text" class="src-name" value="${escHtml(name)}" placeholder="ソース名">
       <input type="text" class="src-url${urlErrClass}" value="${escHtml(url)}" placeholder="https://...">
       <span class="src-type">${escHtml(type)}</span>
-      <button class="src-del" onclick="this.closest('.source-row').remove()" aria-label="削除">✕</button>`;
+      <button class="src-del" onclick="this.closest('.source-row').remove()" aria-label="削除">✕</button>
+      <span class="src-status-badge"></span>`;
     row.querySelector('.src-url').addEventListener('input', function() {
       this.classList.toggle('src-url--err', !this.value.trim().startsWith('https://'));
     });
@@ -2022,6 +2025,37 @@
         el.style.display = 'none';
       }
     } catch { el.style.display = 'none'; }
+  }
+
+  async function fetchSourceStatus() {
+    const { owner, repo, pat } = getGithubCreds();
+    if (!pat || !owner || !repo) return;
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contents/docs/data/collect_status.json`,
+        { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const status = JSON.parse(decodeBase64Utf8(data.content));
+      document.querySelectorAll('#cfg-sources .source-row').forEach(row => {
+        const name = row.querySelector('.src-name').value.trim();
+        const badge = row.querySelector('.src-status-badge');
+        if (!badge) return;
+        const s = status.sources?.[name];
+        if (s?.status === 'failed') {
+          badge.textContent = '⚠ 取得失敗';
+          badge.style.color = 'var(--warn)';
+          badge.style.display = 'inline';
+        } else if (s?.status === 'ok') {
+          badge.textContent = '✓ 取得成功';
+          badge.style.color = 'var(--accent)';
+          badge.style.display = 'inline';
+        } else {
+          badge.style.display = '';
+        }
+      });
+    } catch { /* サイレント */ }
   }
 
   function saveGithubCreds() {

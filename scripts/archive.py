@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from collections import Counter
@@ -16,6 +17,7 @@ from datetime import datetime, timezone
 from schemas import Article
 
 INPUT_PATH = "/tmp/neura_summarized.json"
+STATUS_SRC_PATH = "/tmp/neura_collect_status.json"
 DATA_DIR = "docs/data"
 INDEX_PATH = os.path.join(DATA_DIR, "index.json")
 MAX_INDEX_DATES = 100
@@ -67,6 +69,12 @@ def main() -> None:
     articles: list[Article] = load_json(INPUT_PATH)
     today = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
     generated_at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # 0. ソース別収集ステータスファイルをリポジトリへコピー（git add docs/data/ で一緒にコミット）
+    if os.path.exists(STATUS_SRC_PATH):
+        os.makedirs(DATA_DIR, exist_ok=True)
+        shutil.copy(STATUS_SRC_PATH, os.path.join(DATA_DIR, "collect_status.json"))
+        print(f"[INFO]  archive: collect_status.json 更新")
 
     # 1. 日次JSONを生成
     daily_data = {"date": today, "generated_at": generated_at, "articles": articles}

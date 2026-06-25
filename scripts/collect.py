@@ -20,6 +20,7 @@ from config_loader import load_config
 from schemas import CollectedArticle, Keywords, Source
 
 OUTPUT_PATH = "/tmp/neura_collected.json"
+STATUS_PATH = "/tmp/neura_collect_status.json"
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)  # NF-01：各リクエスト10秒
 USER_AGENT = "Mozilla/5.0 (compatible; Neura/1.0; +https://github.com/yourname/neura)"
 BODY_MAX_CHARS = 5000
@@ -226,22 +227,24 @@ def filter_and_rank(articles: list[CollectedArticle], keywords: Keywords) -> lis
 # ── ディスパッチ・メイン ──────────────────────────────────────
 
 
-def build_tasks(session: aiohttp.ClientSession, sources: list[Source]) -> list:
+def build_tasks(session: aiohttp.ClientSession, sources: list[Source]) -> list[tuple[str, object]]:
+    """(source.name, coroutine) ペアのリストを返す。ステータス記録にsource.nameを使う。"""
     tasks = []
     for s in sources:
         if not s.get("enabled"):
             continue
+        name = s["name"]
         t = s["type"]
         if t == "hackernews":
-            tasks.append(fetch_hackernews(session, s["url"]))
+            tasks.append((name, fetch_hackernews(session, s["url"])))
         elif t == "reddit":
-            tasks.append(fetch_rss(session, s["url"], "Reddit"))   # Reddit は RSS フィードで取得
+            tasks.append((name, fetch_rss(session, s["url"], "Reddit")))
         elif t == "rss":
-            tasks.append(fetch_rss(session, s["url"], "RSS"))
+            tasks.append((name, fetch_rss(session, s["url"], "RSS")))
         elif t == "zenn":
-            tasks.append(fetch_rss(session, s["url"], "Zenn"))     # Zenn はキーワードフィルタ不要
+            tasks.append((name, fetch_rss(session, s["url"], "Zenn")))
         elif t == "hatena":
-            tasks.append(fetch_hatena(session, s["url"]))          # はてブも hotentry RSS で取得
+            tasks.append((name, fetch_hatena(session, s["url"])))
         else:
             print(f"[WARN]  collect: 未知のtype {t}（スキップ）")
     return tasks
@@ -260,8 +263,25 @@ async def main() -> None:
     config = load_config()  # FR-06：設定読込（不在時デフォルト）
 
     async with aiohttp.ClientSession(headers={"User-Agent": USER_AGENT}) as session:
-        tasks = build_tasks(session, config["sources"])
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        named_tasks = build_tasks(session, config["sources"])
+        names = [n for n, _ in named_tasks]
+        coros = [c for _, c in named_tasks]
+        results = await asyncio.gather(*coros, return_exceptions=True)
+
+    # ソース別ステータスを記録（成功＝list返却、失敗＝Exception or空list）
+    source_status: dict = {}
+    for name, result in zip(names, results):
+        if isinstance(result, list) and result:
+            source_status[name] = {"status": "ok", "count": len(result)}
+        elif isinstance(result, list):
+            source_status[name] = {"status": "failed", "count": 0}
+        else:
+            source_status[name] = {"status": "failed", "count": 0}
+    save_json(STATUS_PATH, {
+        "run_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "sources": source_status,
+    })
+    print(f"[INFO]  collect: collect_status.json 書き出し完了")
 
     articles = filter_and_rank(flatten(results), config["keywords"])
 
