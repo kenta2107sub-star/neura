@@ -12,7 +12,7 @@
 
 ## サービス概要
 
-毎日13時（JST）にAIニュース・活用事例を自動収集・要約し、Discordへ通知するとともに、GitHub Pages上のWebサイトにアーカイブとして蓄積・閲覧できるシステム。月額費用ゼロで運用する。
+設定した時刻（JST・1日最大3回）にAIニュース・活用事例を自動収集・要約し、Discordへ通知するとともに、GitHub Pages上のWebサイトにアーカイブとして蓄積・閲覧できるシステム。月額費用ゼロで運用する。
 
 ---
 
@@ -49,10 +49,10 @@
 Hacker News API・Reddit/はてブ/各種RSSフィードからAI関連記事を並列取得する（Reddit・はてブはBotブロック/API非提供のためRSSを使用）。
 
 #### 対応するインターフェース
-GitHub Actions のcronジョブ（毎日04:00 UTC = 13:00 JST）
+GitHub Actions のcronジョブ（`notify_schedules` の `enabled: true` なスロットが実行時刻になったときに起動。1日最大3回まで設定可能）
 
 #### 入力
-- トリガー：GitHub Actions の `schedule` イベント（`cron: '0 4 * * *'`）
+- トリガー：GitHub Actions の `schedule` イベント（`notify_schedules` の有効スロット数分の cron エントリが生成される。例：`'0 4 * * *'` で13:00 JST）
 - 入力データなし（パラメータは固定）
 
 #### 収集対象ソース
@@ -73,6 +73,8 @@ GitHub Actions のcronジョブ（毎日04:00 UTC = 13:00 JST）
 | ソース | 取得方法 | 取得件数上限 | 認証 |
 |---|---|---|---|
 | Zenn（`ai` タグ） | RSS `https://zenn.dev/topics/ai/feed` | 最新20件 | 不要 |
+| Qiita AI | RSS `https://qiita.com/tags/ai/feed` | 最新20件 | 不要（`zenn` typeと同じパーサ使用。AIタグフィードのためキーワードフィルタ不要） |
+| ITmedia AI+ | RSS `https://rss.itmedia.co.jp/rss/2.0/aiplus.xml` | 最新20件 | 不要 |
 | はてなブックマーク（テクノロジー） | RSS `https://b.hatena.ne.jp/hotentry/it.rss` → AIキーワードフィルタ（`.json` は存在せず302のためRSSを使用。`hatena:bookmarkcount` でブクマ数取得） | 上位30件をフィルタ対象 | 不要 |
 
 #### 処理フロー
@@ -126,7 +128,7 @@ GitHub Actions のcronジョブ（毎日04:00 UTC = 13:00 JST）
 ### FR-02：AI要約・分類
 
 #### 概要（1行）
-FR-01で収集した記事をGemini Flash APIで日本語要約し、最大 `max_articles` 件（1〜10件、デフォルト10）に厳選・カテゴリ付けする。
+FR-01で収集した記事をGemini Flash API（`gemini-2.5-flash`）で日本語要約し、実行スロットの `max_articles`（1〜10件、デフォルト10）に厳選・カテゴリ付けする。
 
 #### 対応するインターフェース
 GitHub Actions のcronジョブ（FR-01の直後に実行）
@@ -158,7 +160,8 @@ GitHub Actions のcronジョブ（FR-01の直後に実行）
    ```
 3. Gemini APIのレスポンスをJSONとしてパースする
    - パース失敗時：リトライなし。`[ERROR] Failed to parse Gemini response` をログに記録して終了する（GitHub Actionsのワークフロー失敗通知で検知する）
-4. パース成功時：`importance` 降順でソートし、上位 `max_articles` 件（`config.json` の値。未設定時は10）を選択する
+4. パース成功時：Gemini が同じ URL を重複返却した場合は URL 正規化後に先着1件を残して重複除去する
+5. `importance` 降順でソートし、実行スロットの `max_articles` 件（スロット未設定時は10）を選択する
 5. 元の記事URLと対応付けて最終記事オブジェクトを生成する
 
 #### 出力（正常系）
@@ -192,7 +195,7 @@ GitHub Actions のcronジョブ（FR-01の直後に実行）
 
 #### 依存関係
 - このFRに依存するFR：FR-03、FR-04
-- このFRが依存するFR：FR-01、FR-06（`config.json` の `gemini_prompt`・`genres` を読み込む。未設定時はデフォルト値で動作する）
+- このFRが依存するFR：FR-01、FR-06（`config.json` の `gemini_prompt`・実行スロットの `genres`・`max_articles` を読み込む。未設定時はデフォルト値で動作する）
 
 ---
 
@@ -427,12 +430,6 @@ SCR-02（日次詳細）:
 #### `config/config.json` の構造
 ```json
 {
-  "genres": {
-    "ニュース": true,
-    "研究": true,
-    "活用事例": true,
-    "ツール": true
-  },
   "sources": [
     { "name": "Hacker News", "url": "https://hacker-news.firebaseio.com/v0/topstories.json", "type": "hackernews", "enabled": true },
     { "name": "Reddit r/artificial", "url": "https://www.reddit.com/r/artificial/top/.rss?t=day", "type": "reddit", "enabled": true },
@@ -441,26 +438,29 @@ SCR-02（日次詳細）:
     { "name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "type": "rss", "enabled": true },
     { "name": "VentureBeat AI", "url": "https://venturebeat.com/category/ai/feed/", "type": "rss", "enabled": true },
     { "name": "Zenn AI", "url": "https://zenn.dev/topics/ai/feed", "type": "zenn", "enabled": true },
+    { "name": "Qiita AI", "url": "https://qiita.com/tags/ai/feed", "type": "zenn", "enabled": true },
+    { "name": "ITmedia AI+", "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", "type": "rss", "enabled": true },
     { "name": "はてなブックマーク IT", "url": "https://b.hatena.ne.jp/hotentry/it.rss", "type": "hatena", "enabled": true }
   ],
   "keywords": {
     "en": ["ai", "llm", "gpt", "claude", "gemini", "openai", "anthropic", "machine learning", "deep learning", "neural", "chatbot", "agent", "generative"],
     "ja": ["AI", "LLM", "GPT", "Claude", "Gemini", "OpenAI", "Anthropic", "機械学習", "生成AI", "チャットボット", "エージェント"]
   },
-  "gemini_prompt": "以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n各記事について以下の形式でJSON配列を返してください：\n- url: 元記事のURLをそのまま返す（変更禁止。後工程のURL照合に使用する）\n- title_ja: 日本語タイトル（30文字以内。元が日本語の場合はそのまま使用）\n- summary_ja: 日本語要約（80文字以内）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n- category: \"ニュース\" | \"研究\" | \"活用事例\" | \"ツール\" のいずれか\n- importance: 1〜5の整数（5が最重要）\n海外・日本語の両ソースからバランスよく選んでください。\n記事一覧:\n{articles}",
+  "gemini_prompt": "以下のAI関連記事から...\n{articles}\nJSON配列のみ返してください。",
   "notify_schedules": [
-    { "hour": 13, "enabled": true },
-    { "hour": 20, "enabled": false },
-    { "hour": 8,  "enabled": false }
-  ],
-  "max_articles": 10
+    { "hour": 13, "enabled": true,  "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} },
+    { "hour": 20, "enabled": false, "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} },
+    { "hour":  8, "enabled": false, "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} }
+  ]
 }
 ```
 
-> **`sources[].type` の許容値**：`"hackernews"` / `"reddit"` / `"rss"` / `"zenn"` / `"hatena"`。collect.py がこの値でパーサを振り分ける（FR-01参照）。設定画面からユーザーが追加できるソースは `type: "rss"`（汎用RSS/Atom）のみとする。
+> **`sources[].type` の許容値**：`"hackernews"` / `"reddit"` / `"rss"` / `"zenn"` / `"hatena"`。collect.py がこの値でパーサを振り分ける（FR-01参照）。設定画面からユーザーが追加できるソースは `type: "rss"`（汎用RSS/Atom）のみとする。`"zenn"` type は Qiita AI も含む（AIタグフィードのためキーワードフィルタをスキップする）。
 > **`gemini_prompt` の `{articles}` プレースホルダー**：summarize.py が記事一覧テキストに置換する。このプレースホルダーは必須（保存時にバリデーションする。SCR-04 / ERR-12参照）。
-> **`notify_schedules`**：通知スケジュールの配列（最大3件）。各エントリは `{ "hour": 0〜23（JST）, "enabled": true/false }` の形式。`enabled: true` のエントリが `.github/workflows/daily.yml` の cron エントリに対応する。少なくとも1件は `enabled: true` でなければならない（バリデーション：ERR-13参照）。
-> **`max_articles`**：1回の通知で選出する記事の上限件数（1〜10の整数）。デフォルトは10。設定画面のスライダーで変更する。
+> **`notify_schedules`**：通知スケジュールの配列（最大3件）。各エントリは `{ "hour": 0〜23（JST）, "enabled": true/false, "max_articles": 1〜10, "genres": {カテゴリ: bool} }` の形式。`enabled: true` のエントリが `.github/workflows/daily.yml` の cron エントリに対応する。少なくとも1件は `enabled: true` でなければならない（バリデーション：ERR-13参照）。
+> **`notify_schedules[].max_articles`**：そのスロットで選出する記事の上限件数（1〜10の整数）。スロットごとに異なる件数を設定できる。デフォルトは10。
+> **`notify_schedules[].genres`**：そのスロットで通知するカテゴリのON/OFFマップ。スロットごとに異なるジャンルフィルタを設定できる。
+> **グローバルの `genres` / `max_articles` は廃止**：旧設定（`run_hour_jst`・グローバル `genres`・グローバル `max_articles`）が残っている場合は `config_loader.py` が自動マイグレーションしてスロット内に移行する。
 > **GitHub接続情報（owner / repo / PAT）は config.json に含めない**：config.json 自体をGitHub APIで取得するために owner/repo/PAT が先に必要となる（鶏卵問題）ため、これらはブラウザの `localStorage` にのみ保存する（FR-06 セキュリティ・SCR-04参照）。
 
 #### config.json が存在しない場合（フォールバック）

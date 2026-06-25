@@ -106,7 +106,7 @@ neura/
 | 5 | ホーム（日付一覧） | 過去のダイジェスト日付を月別折りたたみ形式で一覧表示。検索入力欄を設置 | FR-05 | SCR-01 | ✅ |
 | 6 | 日次詳細（記事一覧）＋全文翻訳 | 選択した日の記事をカード形式で表示。翻訳ボタンでmarkdown全文翻訳を展開可能 | FR-05 | SCR-02 | ✅ |
 | 7 | キーワード検索 | 全日付をまたいでAND検索。結果に日付ラベル・キーワードハイライト付き | FR-05 | SCR-03 | ✅ |
-| 8 | 設定管理 | ジャンル・ソース・キーワード・Geminiプロンプトを編集しGitHub APIで `config.json` を保存 | FR-06 | SCR-04 | ✅ |
+| 8 | 設定管理 | 収集ソース・通知スケジュール（1〜3件）・スロット毎のジャンル/件数・キーワード・Geminiプロンプトを編集しGitHub APIで `config.json` を保存 | FR-06 | SCR-04 | ✅ |
 
 ---
 
@@ -319,20 +319,31 @@ neura/
 │  PAT    [ ••••••••••••••••  ] [変更] [削除]  │
 │  接続状態：✅ 接続済み / ❌ 未接続           │
 │                                              │
-│  ## ニュースジャンル                          │
-│  [✅] ニュース  [✅] 研究                    │
-│  [✅] 活用事例  [✅] ツール                  │
-│                                              │
 │  ## 収集ソース                               │
 │  [✅] HackerNews                            │
 │  [✅] Reddit r/artificial                   │
 │  [✅] Reddit r/MachineLearning              │
 │  [✅] Zenn AI topics                        │
-│  [✅] はてなブックマーク AI                  │
-│  [+ ソースを追加]                            │
+│  [✅] Qiita AI                              │
+│  [✅] ITmedia AI+                           │
+│  [✅] はてなブックマーク IT                  │
+│  [+ RSSソースを追加]                         │
 │                                              │
-│  ## 実行スケジュール                          │
-│  実行時刻（JST）  [ 13時 ▼ ]（0〜23時）     │
+│  ## 実行スケジュール（最大3スロット）         │
+│  ┌────────────────────────────────────┐     │
+│  │ [✅] スロット1  [ 13:00 JST ▼ ]   │     │
+│  │  ジャンル [✅]ニュース [✅]研究    │     │
+│  │          [✅]活用事例 [✅]ツール   │     │
+│  │  件数: 10件 [────────────●──] 10  │     │
+│  └────────────────────────────────────┘     │
+│  ┌────────────────────────────────────┐     │
+│  │ [ ] スロット2  [ 20:00 JST ▼ ]   │     │
+│  │  （無効時はグレーアウト）           │     │
+│  └────────────────────────────────────┘     │
+│  ┌────────────────────────────────────┐     │
+│  │ [ ] スロット3  [  8:00 JST ▼ ]   │     │
+│  └────────────────────────────────────┘     │
+│  ※ 変更すると daily.yml の cron 式が更新     │
 │                                              │
 │  ## キーワードフィルタ                        │
 │  英語キーワード（カンマ区切り）               │
@@ -344,7 +355,6 @@ neura/
 │  ┌──────────────────────────────────────┐   │
 │  │ 以下のAI関連記事から、最も重要・     │   │
 │  │ 興味深い5〜10件を選び、...           │   │
-│  │                            [全文表示] │   │
 │  └──────────────────────────────────────┘   │
 │  ⚠ {articles} プレースホルダーは削除不可    │
 │                                              │
@@ -360,13 +370,15 @@ neura/
 | PAT 入力欄 | 入力 + 「保存」 | `localStorage` に保存。「✅ 接続済み」に変化 |
 | PAT 「変更」ボタン | クリック | PAT入力欄を編集可能な状態に切り替える |
 | PAT 「削除」ボタン | クリック | `localStorage` から削除。「❌ 未接続」に変化 |
-| ジャンルチェックボックス | ON/OFF | 未保存の変更として記憶（「保存する」押下時にまとめて送信） |
-| ソースチェックボックス | ON/OFF | 同上 |
-| 「+ ソースを追加」ボタン | クリック | name / url の入力行を1行追加する |
-| 実行時刻セレクトボックス | 選択（0〜23時） | 未保存の変更として記憶 |
+| ソースチェックボックス | ON/OFF | 未保存の変更として記憶（「保存する」押下時にまとめて送信） |
+| 「+ RSSソースを追加」ボタン | クリック | name / url の入力行を1行追加する |
+| スロットチェックボックス | ON/OFF | スロット有効/無効を切り替え。無効時はスロット内の操作をグレーアウト。未保存の変更として記憶 |
+| スロット時刻セレクトボックス | 選択（0〜23時） | そのスロットの実行時刻を設定。未保存の変更として記憶 |
+| スロット内ジャンルチェックボックス | ON/OFF | そのスロットで通知するカテゴリを設定。未保存の変更として記憶 |
+| スロット内件数スライダー | スライド（1〜10） | そのスロットの通知件数上限を設定。現在値をリアルタイム表示 |
 | キーワード入力欄 | 入力 | カンマ区切りで編集。未保存の変更として記憶 |
 | Geminiプロンプト textarea | 入力 | 全文をテキストエリアで直接編集。未保存の変更として記憶 |
-| 「保存する」ボタン | クリック | GitHub Contents API に PUT して `config/config.json` を更新。`run_hour_jst` が変更された場合は `.github/workflows/daily.yml` の cron 式も更新。成功時トーストを表示 |
+| 「保存する」ボタン | クリック | GitHub Contents API に PUT して `config/config.json` を更新。`notify_schedules` が変更された場合は `.github/workflows/daily.yml` の cron 式も更新。成功時トーストを表示 |
 
 #### 状態
 
@@ -525,12 +537,7 @@ const MOCK_DIGEST = {
 
 | フィールド名 | 型 | 必須 | 説明 | デフォルト値 |
 |---|---|---|---|---|
-| `genres` | object | ✅ | カテゴリ名をキー、boolean を値とするON/OFFマップ | 全カテゴリ `true` |
-| `genres.ニュース` | boolean | ✅ | ニュースカテゴリの収集有無 | `true` |
-| `genres.研究` | boolean | ✅ | 研究カテゴリの収集有無 | `true` |
-| `genres.活用事例` | boolean | ✅ | 活用事例カテゴリの収集有無 | `true` |
-| `genres.ツール` | boolean | ✅ | ツールカテゴリの収集有無 | `true` |
-| `sources` | Source[] | ✅ | 収集ソースの配列 | requirements.md FR-01 のデフォルトソース8件 |
+| `sources` | Source[] | ✅ | 収集ソースの配列 | requirements.md FR-01 のデフォルトソース10件 |
 | `sources[].name` | string | ✅ | ソースの表示名 | — |
 | `sources[].url` | string | ✅ | 収集元URL | — |
 | `sources[].type` | string | ✅ | パーサ種別 `"hackernews"` / `"reddit"` / `"rss"` / `"zenn"` / `"hatena"`。UI追加分は `"rss"` のみ | — |
@@ -538,9 +545,14 @@ const MOCK_DIGEST = {
 | `keywords.en` | string[] | ✅ | 英語フィルタリングキーワード | requirements.md FR-01 のデフォルトキーワード |
 | `keywords.ja` | string[] | ✅ | 日本語フィルタリングキーワード | requirements.md FR-01 のデフォルトキーワード |
 | `gemini_prompt` | string | ✅ | Gemini に送るプロンプト全文。`{articles}` プレースホルダーを含む必要がある | requirements.md FR-02 のデフォルトプロンプト |
-| `run_hour_jst` | number | ✅ | GitHub Actions の実行時刻（JST 0〜23 の整数）。保存時に `.github/workflows/daily.yml` の cron 式も更新される | `13` |
+| `notify_schedules` | NotifySchedule[] | ✅ | 通知スケジュール（最大3件） | スロット1のみ有効（13時・10件・全カテゴリ） |
+| `notify_schedules[].hour` | number | ✅ | 実行時刻（JST 0〜23）。保存時に daily.yml の cron も更新される | `13` / `20` / `8` |
+| `notify_schedules[].enabled` | boolean | ✅ | スロットの有効/無効 | スロット1のみ `true` |
+| `notify_schedules[].max_articles` | number | ✅ | そのスロットの通知件数上限（1〜10） | `10` |
+| `notify_schedules[].genres` | object | ✅ | そのスロットで通知するカテゴリON/OFFマップ | 全カテゴリ `true` |
 
 > GitHub接続情報（owner / repo / PAT）は config.json には含めず、ブラウザの `localStorage` に保存する（`neura_github_owner` / `neura_github_repo` / `neura_github_pat`）。理由は requirements.md FR-06 参照。
+> グローバルの `genres` / `max_articles` / `run_hour_jst` は廃止済み。旧形式の config.json は `config_loader.py` が自動マイグレーションする。
 
 ---
 
