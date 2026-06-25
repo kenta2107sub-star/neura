@@ -1179,16 +1179,6 @@
         </div>
       </div>
 
-      <!-- Geminiプロンプト -->
-      <div class="settings-section">
-        <h2 class="settings-h2">## Gemini プロンプト</h2>
-        <div class="settings-field">
-          <label for="cfg-prompt">プロンプト全文（<code class="inline-code">{articles}</code> プレースホルダー必須）</label>
-          <textarea id="cfg-prompt" class="settings-textarea settings-textarea--tall" rows="12"></textarea>
-          <p class="settings-fielderr" id="cfg-prompt-err" style="display:none;">プロンプトに {articles} プレースホルダーが必要です。</p>
-        </div>
-      </div>
-
       <div class="settings-actions">
         <button class="btn-primary" id="settings-save-btn" onclick="saveSettings()">[ 保存する ]</button>
       </div>
@@ -1734,8 +1724,9 @@
     'ERR-13': "設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。"
   };
 
-  let currentSha = null;       // ghGetConfig で取得した config.json の sha
-  let prevSchedules = null;    // 最後にロードした notify_schedules（変更検知用）
+  let currentSha = null;          // ghGetConfig で取得した config.json の sha
+  let prevSchedules = null;       // 最後にロードした notify_schedules（変更検知用）
+  let cachedGeminiPrompt = null;  // UI に出さないが保存時に引き継ぐ
 
   /* notify_schedules → daily.yml の schedule ブロック文字列を生成 */
   function schedulesToYamlBlock(schedules) {
@@ -1922,9 +1913,8 @@
     document.getElementById('cfg-kw-en').value = (kw.en || []).join(', ');
     document.getElementById('cfg-kw-ja').value = (kw.ja || []).join(', ');
 
-    // prompt
-    document.getElementById('cfg-prompt').value = config.gemini_prompt || '';
-    document.getElementById('cfg-prompt-err').style.display = 'none';
+    // prompt（UI には出さないが保存時に引き継ぐ）
+    cachedGeminiPrompt = config.gemini_prompt || DEFAULT_CONFIG_JS.gemini_prompt || '';
   }
 
   function toggleSlotBody(i, enabled) {
@@ -1973,8 +1963,7 @@
       keywords: {
         en: splitKw(document.getElementById('cfg-kw-en').value),
         ja: splitKw(document.getElementById('cfg-kw-ja').value)
-      },
-      gemini_prompt: document.getElementById('cfg-prompt').value
+      }
     };
   }
 
@@ -1995,7 +1984,6 @@
 
   async function saveSettings() {
     const config = collectFormConfig();
-    const errEl = document.getElementById('cfg-prompt-err');
 
     // スケジュール最低1件有効チェック
     const schedErrEl = document.getElementById('cfg-sched-err');
@@ -2005,13 +1993,8 @@
     }
     schedErrEl.style.display = 'none';
 
-    // ERR-12: {articles} 必須
-    if (!config.gemini_prompt.includes('{articles}')) {
-      errEl.style.display = '';
-      document.getElementById('cfg-prompt').focus();
-      return;
-    }
-    errEl.style.display = 'none';
+    // UI に表示しない gemini_prompt を引き継ぐ
+    config.gemini_prompt = cachedGeminiPrompt;
 
     const { owner, repo, pat } = getGithubCreds();
     if (!pat || !owner || !repo) {
