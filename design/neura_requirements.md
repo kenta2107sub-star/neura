@@ -126,7 +126,7 @@ GitHub Actions のcronジョブ（毎日04:00 UTC = 13:00 JST）
 ### FR-02：AI要約・分類
 
 #### 概要（1行）
-FR-01で収集した記事をGemini Flash APIで日本語要約し、5〜10件に厳選・カテゴリ付けする。
+FR-01で収集した記事をGemini Flash APIで日本語要約し、最大 `max_articles` 件（1〜10件、デフォルト10）に厳選・カテゴリ付けする。
 
 #### 対応するインターフェース
 GitHub Actions のcronジョブ（FR-01の直後に実行）
@@ -158,7 +158,7 @@ GitHub Actions のcronジョブ（FR-01の直後に実行）
    ```
 3. Gemini APIのレスポンスをJSONとしてパースする
    - パース失敗時：リトライなし。`[ERROR] Failed to parse Gemini response` をログに記録して終了する（GitHub Actionsのワークフロー失敗通知で検知する）
-4. パース成功時：`importance` 降順でソートし、上位10件を選択する
+4. パース成功時：`importance` 降順でソートし、上位 `max_articles` 件（`config.json` の値。未設定時は10）を選択する
 5. 元の記事URLと対応付けて最終記事オブジェクトを生成する
 
 #### 出力（正常系）
@@ -373,7 +373,7 @@ SCR-02（日次詳細）:
 ### FR-06：設定管理
 
 #### 概要（1行）
-ブラウザの設定画面からニュース収集設定（ジャンル・ソース・Geminiプロンプト・キーワードフィルタ・実行時刻）を編集し、GitHub Contents API 経由で `config/config.json` および `.github/workflows/daily.yml` をリポジトリに直接コミットする。
+ブラウザの設定画面からニュース収集設定（ジャンル・ソース・Geminiプロンプト・キーワードフィルタ・通知スケジュール×最大3件・通知件数上限）を編集し、GitHub Contents API 経由で `config/config.json` および `.github/workflows/daily.yml` をリポジトリに直接コミットする。
 
 #### 対応する画面
 - `SCR-04`：設定画面
@@ -402,17 +402,26 @@ SCR-02（日次詳細）:
 3. `PUT https://api.github.com/repos/{owner}/{repo}/contents/config/config.json` を fetch する
    - リクエストボディ：`{ message: "chore: update config", content: {Base64}, sha: {現在のsha} }`
    - Authorization ヘッダーに `Bearer {PAT}` を付与する
-4. `run_hour_jst` が変更されていた場合、続けて `.github/workflows/daily.yml` の cron 式を書き換える
+4. `notify_schedules` が変更されていた場合、続けて `.github/workflows/daily.yml` の `on.schedule` ブロックを書き換える
    - `GET https://api.github.com/repos/{owner}/{repo}/contents/.github/workflows/daily.yml` で現在の内容と `sha` を取得する
-   - ファイル内の cron 式（`'0 {旧UTC時} * * *'`）を `'0 {新UTC時} * * *'` に置換する（JST → UTC = JST - 9、負の場合は +24）
-   - `PUT` で更新する（コミットメッセージ：`chore: update schedule to {run_hour_jst}:00 JST`）
+   - `notify_schedules` の `enabled: true` なエントリのみを抽出し（1〜3件）、各エントリの `hour`（JST）を UTC に変換する（UTC = JST - 9、負の場合は +24）
+   - ファイル内の `on:\n  schedule:\n` 以降のエントリ行を、有効なスケジュール数分の cron 行に置換する
+     ```yaml
+     # 例：13時・20時の2件が有効な場合
+     on:
+       schedule:
+         - cron: '0 4 * * *'    # 13:00 JST
+         - cron: '0 11 * * *'   # 20:00 JST
+       workflow_dispatch:
+     ```
+   - `PUT` で更新する（コミットメッセージ：`chore: update notify schedules`）
    - 失敗時：ERR-13 を表示する（config.json の保存は成功済みのため別エラーとして扱う）
 5. 全て成功時：「設定を保存しました」トーストを表示する
 6. 失敗時：エラー内容に応じたメッセージを表示する（ERR-08〜ERR-13参照）
 
 #### 出力（正常系）
 - `config/config.json` がリポジトリに1コミット追加される
-- `run_hour_jst` が変更された場合は `.github/workflows/daily.yml` にも1コミット追加される（cronスケジュールが即座に変わる）
+- `notify_schedules` が変更された場合は `.github/workflows/daily.yml` にも1コミット追加される（cronスケジュールが即座に変わる）
 - 次回の定時実行から新しい設定が適用される
 
 #### `config/config.json` の構造
@@ -439,13 +448,19 @@ SCR-02（日次詳細）:
     "ja": ["AI", "LLM", "GPT", "Claude", "Gemini", "OpenAI", "Anthropic", "機械学習", "生成AI", "チャットボット", "エージェント"]
   },
   "gemini_prompt": "以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n各記事について以下の形式でJSON配列を返してください：\n- url: 元記事のURLをそのまま返す（変更禁止。後工程のURL照合に使用する）\n- title_ja: 日本語タイトル（30文字以内。元が日本語の場合はそのまま使用）\n- summary_ja: 日本語要約（80文字以内）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n- category: \"ニュース\" | \"研究\" | \"活用事例\" | \"ツール\" のいずれか\n- importance: 1〜5の整数（5が最重要）\n海外・日本語の両ソースからバランスよく選んでください。\n記事一覧:\n{articles}",
-  "run_hour_jst": 13
+  "notify_schedules": [
+    { "hour": 13, "enabled": true },
+    { "hour": 20, "enabled": false },
+    { "hour": 8,  "enabled": false }
+  ],
+  "max_articles": 10
 }
 ```
 
 > **`sources[].type` の許容値**：`"hackernews"` / `"reddit"` / `"rss"` / `"zenn"` / `"hatena"`。collect.py がこの値でパーサを振り分ける（FR-01参照）。設定画面からユーザーが追加できるソースは `type: "rss"`（汎用RSS/Atom）のみとする。
 > **`gemini_prompt` の `{articles}` プレースホルダー**：summarize.py が記事一覧テキストに置換する。このプレースホルダーは必須（保存時にバリデーションする。SCR-04 / ERR-12参照）。
-> **`run_hour_jst`**：GitHub Actions の実行時刻（JST 0〜23 の整数）。設定画面で変更すると `.github/workflows/daily.yml` の cron 式も自動更新される（ERR-13参照）。
+> **`notify_schedules`**：通知スケジュールの配列（最大3件）。各エントリは `{ "hour": 0〜23（JST）, "enabled": true/false }` の形式。`enabled: true` のエントリが `.github/workflows/daily.yml` の cron エントリに対応する。少なくとも1件は `enabled: true` でなければならない（バリデーション：ERR-13参照）。
+> **`max_articles`**：1回の通知で選出する記事の上限件数（1〜10の整数）。デフォルトは10。設定画面のスライダーで変更する。
 > **GitHub接続情報（owner / repo / PAT）は config.json に含めない**：config.json 自体をGitHub APIで取得するために owner/repo/PAT が先に必要となる（鶏卵問題）ため、これらはブラウザの `localStorage` にのみ保存する（FR-06 セキュリティ・SCR-04参照）。
 
 #### config.json が存在しない場合（フォールバック）
