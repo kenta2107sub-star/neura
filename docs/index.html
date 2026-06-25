@@ -235,12 +235,14 @@
       color: inherit;
       border: 1px solid transparent;
       border-bottom: 1px solid var(--border);
-      transition: background 0.12s, border-color 0.12s;
+      transition: background 0.18s, border-color 0.18s, transform 0.18s, box-shadow 0.18s;
     }
     .date-card:hover {
       background: var(--surface);
       border-color: var(--border-mid);
       border-left-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     }
     .date-card:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
 
@@ -261,7 +263,7 @@
     .date-tile-spacer { width: 46px; flex-shrink: 0; }
 
     /* カード単位のフェードイン */
-    .date-card-anim { animation: fade-slide-in 0.4s ease both; }
+    .date-card-anim { animation: fade-slide-in 0.75s ease both; }
 
     /* calendar tile */
     .date-tile {
@@ -1486,7 +1488,7 @@
         const wd = WEEKDAYS[new Date(+yy, +mm - 1, +dd).getDay()];
         const isAbsoluteLatest = file === absoluteLatestFile;
         const isFirstOfDate = !seenDates.has(date);
-        const animDelay = `${globalIdx * 0.06}s`;
+        const animDelay = `${globalIdx * 0.12}s`;
         seenDates.add(date);
         globalIdx++;
 
