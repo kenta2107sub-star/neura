@@ -254,7 +254,7 @@ def load_config() -> AppConfig:
     return {**DEFAULT_CONFIG, **cfg}
 ```
 
-> `gemini_prompt` に `{articles}` が含まれない場合の保険：summarize.py 側で `{articles}` 不在を検知したらデフォルトプロンプトにフォールバックする（`[WARN]` ログ）。設定画面（SCR-04）でも保存前にバリデーションする（ERR-12）ため、通常は発生しない。
+> `gemini_prompt` に `{articles}` が含まれない場合の保険：summarize.py 側で `{articles}` 不在を検知したらデフォルトプロンプトにフォールバックする（`[WARN]` ログ）。プロンプトは config.json を直接編集する運用のため UI バリデーションは設けない。
 
 ---
 
@@ -1070,11 +1070,6 @@ async function ghPutWorkflow(newCronExpr) {
 
 ```javascript
 async function saveSettings(config, prevSchedules) {
-    // ERR-12: プロンプトに {articles} が必須
-    if (!config.gemini_prompt.includes('{articles}')) {
-        showFieldError('gemini_prompt', 'ERR-12');
-        return;
-    }
     // 少なくとも1スロットが enabled でなければならない（ERR-13）
     if (!config.notify_schedules.some(s => s.enabled)) {
         showSchedError('ERR-13');
@@ -1323,14 +1318,13 @@ jobs:
 | ERR-09 | FR-06 | フロントエンド（SCR-04） | GitHub API 403（権限不足） | バナー表示：`"PATにリポジトリへの書き込み権限がありません。スコープ 'repo' を確認してください。"` |
 | ERR-10 | FR-06 | フロントエンド（SCR-04） | GitHub API 404（リポジトリ未発見） | バナー表示：`"リポジトリが見つかりません。Owner / Repo の設定を確認してください。"` |
 | ERR-11 | FR-06 | フロントエンド（SCR-04） | その他HTTP/ネットワークエラー | バナー表示：`"設定の保存に失敗しました。しばらく後に再試行してください。"` |
-| ERR-12 | FR-06 | フロントエンド（SCR-04） | プロンプトに `{articles}` が無い | プロンプト欄直下に表示：`"プロンプトに {articles} プレースホルダーが必要です。"`（API呼び出しなし） |
 | ERR-13 | FR-06 | フロントエンド（SCR-04） | `.github/workflows/daily.yml` の PUT 失敗（権限不足・置換失敗等） | バナー表示：`"設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。"`（config.json は保存済み） |
 
 > ERR-04〜07はすべてGitHub Actionsのログおよびワークフロー失敗通知で検知する。
 > - ERR-04・ERR-05：Pythonスクリプトのexit(1)によりワークフローが失敗状態になる。GitHub Actionsのデフォルト失敗通知（メール等）で検知する
 > - ERR-06：`continue-on-error: true` により後続のarchive.pyは実行される。Discordへのエラー通知はDiscord自体が宛先のため実装しない
 > - ERR-07：gitコミット失敗はGitHub Actionsのステップログで確認する
-> - ERR-08〜12：設定画面（SCR-04）のブラウザ内エラー。バナーまたはフィールド直下に表示する。
+> - ERR-08〜11・ERR-13：設定画面（SCR-04）のブラウザ内エラー。バナーまたはフィールド直下に表示する。
 > - なお `config/config.json` の不在・パース失敗はエラーではなくデフォルト値で続行する（`config_loader.py`・`[WARN]`）。
 
 ---

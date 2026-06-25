@@ -456,7 +456,7 @@ SCR-02（日次詳細）:
 ```
 
 > **`sources[].type` の許容値**：`"hackernews"` / `"reddit"` / `"rss"` / `"zenn"` / `"hatena"`。collect.py がこの値でパーサを振り分ける（FR-01参照）。設定画面からユーザーが追加できるソースは `type: "rss"`（汎用RSS/Atom）のみとする。`"zenn"` type は Qiita AI も含む（AIタグフィードのためキーワードフィルタをスキップする）。
-> **`gemini_prompt` の `{articles}` プレースホルダー**：summarize.py が記事一覧テキストに置換する。このプレースホルダーは必須（保存時にバリデーションする。SCR-04 / ERR-12参照）。
+> **`gemini_prompt` の `{articles}` プレースホルダー**：summarize.py が記事一覧テキストに置換する。このプレースホルダーは必須。プロンプトは設定UIには非公開で config.json 直接編集で変更する。`{articles}` 不在時は summarize.py がデフォルトプロンプトにフォールバックする（`[WARN]` ログ）。
 > **`notify_schedules`**：通知スケジュールの配列（最大3件）。各エントリは `{ "hour": 0〜23（JST）, "enabled": true/false, "max_articles": 1〜10, "genres": {カテゴリ: bool} }` の形式。`enabled: true` のエントリが `.github/workflows/daily.yml` の cron エントリに対応する。少なくとも1件は `enabled: true` でなければならない（バリデーション：ERR-13参照）。
 > **`notify_schedules[].max_articles`**：そのスロットで選出する記事の上限件数（1〜10の整数）。スロットごとに異なる件数を設定できる。デフォルトは10。
 > **`notify_schedules[].genres`**：そのスロットで通知するカテゴリのON/OFFマップ。スロットごとに異なるジャンルフィルタを設定できる。
