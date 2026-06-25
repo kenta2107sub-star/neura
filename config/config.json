@@ -62,9 +62,39 @@
     }
   ],
   "notify_schedules": [
-    { "hour": 13, "enabled": true,  "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} },
-    { "hour": 20, "enabled": false, "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} },
-    { "hour": 8,  "enabled": false, "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} }
+    {
+      "hour": 13,
+      "enabled": true,
+      "max_articles": 5,
+      "genres": {
+        "ニュース": false,
+        "研究": false,
+        "活用事例": true,
+        "ツール": true
+      }
+    },
+    {
+      "hour": 19,
+      "enabled": true,
+      "max_articles": 5,
+      "genres": {
+        "ニュース": true,
+        "研究": true,
+        "活用事例": false,
+        "ツール": false
+      }
+    },
+    {
+      "hour": 8,
+      "enabled": false,
+      "max_articles": 10,
+      "genres": {
+        "ニュース": true,
+        "研究": true,
+        "活用事例": true,
+        "ツール": true
+      }
+    }
   ],
   "keywords": {
     "en": [
