@@ -967,6 +967,9 @@
       color: var(--sub); font-family: inherit; font-size: 11px; padding: 5px 8px; box-sizing: border-box;
     }
     .source-row .src-type { font-size: 10px; color: var(--sub); border: 1px solid var(--border-mid); padding: 2px 6px; width: 84px; text-align: center; flex-shrink: 0; box-sizing: border-box; }
+    .src-url--err { border-color: var(--error) !important; }
+    .run-status { font-size: 11px; margin-bottom: 10px; }
+    .run-status a { color: inherit; text-decoration: underline; }
     .source-row .src-del {
       background: none; border: 1px solid var(--border-mid); color: var(--sub);
       font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; flex-shrink: 0;
@@ -1162,6 +1165,8 @@
       <!-- ソース -->
       <div class="settings-section">
         <h2 class="settings-h2">## 収集ソース</h2>
+        <div id="src-run-status" class="run-status" style="display:none;"></div>
+        <p class="settings-fielderr" id="src-url-err" style="display:none;">URLが未入力またはhttps://で始まっていないソースがあります。</p>
         <div class="source-header">
           <span class="sh-cb"></span>
           <span class="sh-name">ソース名</span>
@@ -1867,6 +1872,7 @@
       });
       renderSettings(config);
       document.getElementById('settings-save-btn').disabled = false;
+      fetchLastRunStatus();
     } catch (e) {
       showBanner(ERROR_MESSAGES[e.code] || ERROR_MESSAGES['ERR-11'], true);
       renderSettings(DEFAULT_CONFIG_JS);
@@ -1941,12 +1947,16 @@
     const row = document.createElement('div');
     row.className = 'source-row';
     row.dataset.type = type;
+    const urlErrClass = url && url.startsWith('https://') ? '' : ' src-url--err';
     row.innerHTML = `
       <input type="checkbox" class="src-enabled" ${enabled ? 'checked' : ''} aria-label="有効">
       <input type="text" class="src-name" value="${escHtml(name)}" placeholder="ソース名">
-      <input type="text" class="src-url" value="${escHtml(url)}" placeholder="https://...">
+      <input type="text" class="src-url${urlErrClass}" value="${escHtml(url)}" placeholder="https://...">
       <span class="src-type">${escHtml(type)}</span>
       <button class="src-del" onclick="this.closest('.source-row').remove()" aria-label="削除">✕</button>`;
+    row.querySelector('.src-url').addEventListener('input', function() {
+      this.classList.toggle('src-url--err', !this.value.trim().startsWith('https://'));
+    });
     wrap.appendChild(row);
   }
 
@@ -1981,6 +1991,39 @@
     };
   }
 
+  async function fetchLastRunStatus() {
+    const el = document.getElementById('src-run-status');
+    const { owner, repo, pat } = getGithubCreds();
+    if (!pat || !owner || !repo) { el.style.display = 'none'; return; }
+    el.style.display = '';
+    el.style.color = 'var(--sub)';
+    el.textContent = '🔄 最終実行を確認中...';
+    try {
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/actions/workflows/daily.yml/runs?per_page=1`,
+        { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' } }
+      );
+      if (!res.ok) { el.style.display = 'none'; return; }
+      const data = await res.json();
+      const run = data.workflow_runs?.[0];
+      if (!run) { el.style.display = 'none'; return; }
+      const jst = new Date(new Date(run.created_at).getTime() + 9 * 3600 * 1000);
+      const ts = `${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')} ${String(jst.getUTCHours()).padStart(2,'0')}:${String(jst.getUTCMinutes()).padStart(2,'0')} JST`;
+      if (run.conclusion === 'success') {
+        el.style.color = 'var(--accent)';
+        el.textContent = `✅ 最終実行: ${ts} 成功`;
+      } else if (run.conclusion === 'failure' || run.conclusion === 'timed_out') {
+        el.style.color = 'var(--error)';
+        el.innerHTML = `❌ 最終実行: ${ts} 失敗 <a href="${run.html_url}" target="_blank" rel="noopener">[Actionsで確認 →]</a>`;
+      } else if (run.status === 'in_progress') {
+        el.style.color = 'var(--sub)';
+        el.textContent = `🔄 実行中... (${ts} 開始)`;
+      } else {
+        el.style.display = 'none';
+      }
+    } catch { el.style.display = 'none'; }
+  }
+
   function saveGithubCreds() {
     setGithubCreds({
       owner: document.getElementById('cfg-owner').value.trim(),
@@ -1997,6 +2040,19 @@
   }
 
   async function saveSettings() {
+    // ERR-12: 有効ソースの URL バリデーション
+    const srcErrEl = document.getElementById('src-url-err');
+    let hasUrlErr = false;
+    document.querySelectorAll('#cfg-sources .source-row').forEach(row => {
+      const urlEl = row.querySelector('.src-url');
+      const enabled = row.querySelector('.src-enabled').checked;
+      const invalid = enabled && !urlEl.value.trim().startsWith('https://');
+      urlEl.classList.toggle('src-url--err', invalid);
+      if (invalid) hasUrlErr = true;
+    });
+    if (hasUrlErr) { srcErrEl.style.display = ''; return; }
+    srcErrEl.style.display = 'none';
+
     const config = collectFormConfig();
 
     // スケジュール最低1件有効チェック
