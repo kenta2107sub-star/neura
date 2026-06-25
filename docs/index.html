@@ -964,6 +964,12 @@
       font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; flex-shrink: 0;
     }
     .source-row .src-del:hover { color: var(--error); border-color: var(--error); }
+    .schedule-list { display: flex; flex-direction: column; gap: 8px; }
+    .schedule-row { display: flex; align-items: center; gap: 10px; }
+    .schedule-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; }
+    .schedule-row label { font-size: 12px; color: var(--sub); min-width: 54px; cursor: pointer; }
+    .schedule-row select:disabled { opacity: 0.38; cursor: not-allowed; }
+    .settings-slider { width: 200px; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
     .settings-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
     .settings-toast {
       position: fixed; bottom: 56px; right: 24px; z-index: 200;
@@ -1154,10 +1160,17 @@
       <!-- 実行スケジュール -->
       <div class="settings-section">
         <h2 class="settings-h2">## 実行スケジュール</h2>
+        <div id="cfg-schedules" class="schedule-list"></div>
+        <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）</p>
+        <p class="settings-fielderr" id="cfg-sched-err" style="display:none;margin-top:4px;">少なくとも1つのスケジュールを有効にしてください。</p>
+      </div>
+
+      <div class="settings-section">
+        <h2 class="settings-h2">## 通知件数</h2>
         <div class="settings-field">
-          <label for="cfg-run-hour">実行時刻（JST）</label>
-          <select id="cfg-run-hour" class="settings-input" style="width:120px;cursor:pointer;"></select>
-          <p style="font-size:11px;color:var(--sub);margin-top:4px;">変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）</p>
+          <label>1回あたりの最大通知件数: <strong id="cfg-max-articles-val">10</strong> 件</label>
+          <input type="range" id="cfg-max-articles" class="settings-slider" min="1" max="10" value="10"
+                 oninput="document.getElementById('cfg-max-articles-val').textContent = this.value">
         </div>
       </div>
 
@@ -1396,7 +1409,6 @@
       return;
     }
 
-    updateRunHourDisplays();
     const digests = index.digests || [];
     if (digests.length === 0) { setVisible(states,'empty'); return; }
 
@@ -1507,7 +1519,7 @@
 
     const articles = [...digest.articles].sort((a,b) => b.importance - a.importance);
     document.getElementById('detail-title').textContent = `${formatDate(date)} / AI digest`;
-    document.getElementById('detail-sub').textContent = `${articles.length} articles — updated ${String(getRunHourJst()).padStart(2,'0')}:00 JST daily`;
+    document.getElementById('detail-sub').textContent = `${articles.length} articles — updated daily`;
 
     document.getElementById('article-list').innerHTML = articles.map((art, idx) => {
       const isFeature = art.importance >= 5;
@@ -1714,7 +1726,12 @@
       ja: ['AI','LLM','GPT','Claude','Gemini','OpenAI','Anthropic','機械学習','生成AI','チャットボット','エージェント']
     },
     gemini_prompt: '以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n各記事について以下の形式でJSON配列を返してください。\n海外・日本語の両ソースからバランスよく選んでください。\n\n各記事のJSONフィールド：\n- url: 元記事のURLをそのまま返す（変更禁止）\n- title_ja: 日本語タイトル（30文字以内）\n- summary_ja: 日本語要約（80文字以内）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n- category: "ニュース" | "研究" | "活用事例" | "ツール" のいずれか\n- importance: 1〜5の整数（5が最重要）\n\n記事一覧:\n{articles}\n\nJSON配列のみを返してください。',
-    run_hour_jst: 13
+    notify_schedules: [
+      { hour: 13, enabled: true },
+      { hour: 20, enabled: false },
+      { hour:  8, enabled: false }
+    ],
+    max_articles: 10
   };
 
   const ERROR_MESSAGES = {
@@ -1726,15 +1743,20 @@
   };
 
   let currentSha = null;       // ghGetConfig で取得した config.json の sha
-  let prevRunHourJst = 13;     // 最後にロードした run_hour_jst（変更検知用）
+  let prevSchedules = null;    // 最後にロードした notify_schedules（変更検知用）
 
-  /* JST 時刻 → cron 式変換 */
-  function jstHourToCron(h) {
-    return `0 ${((h - 9) + 24) % 24} * * *`;
+  /* notify_schedules → daily.yml の schedule ブロック文字列を生成 */
+  function schedulesToYamlBlock(schedules) {
+    const enabled = schedules.filter(s => s.enabled);
+    const lines = enabled.map(s => {
+      const utcH = ((s.hour - 9) + 24) % 24;
+      return `    - cron: '0 ${utcH} * * *'    # ${String(s.hour).padStart(2,'0')}:00 JST`;
+    });
+    return `  schedule:\n${lines.join('\n')}\n`;
   }
 
-  /* daily.yml の cron 式を更新する */
-  async function ghPutWorkflow(newCronExpr) {
+  /* daily.yml の schedule ブロックを書き換える */
+  async function ghPutWorkflow(schedules) {
     const { owner, repo, pat } = getGithubCreds();
     const getRes = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
@@ -1743,34 +1765,22 @@
     if (!getRes.ok) throw { code: 'ERR-13' };
     const data = await getRes.json();
     const current = decodeBase64Utf8(data.content);
-    const updated = current.replace(/cron:\s*'[^']*'/, `cron: '${newCronExpr}'`);
+    const newBlock = schedulesToYamlBlock(schedules);
+    const updated = current.replace(/  schedule:\n(?:    - cron: '[^']*'[^\n]*\n)+/, newBlock);
     if (updated === current) throw { code: 'ERR-13' };
-    const jstH = (parseInt(newCronExpr.split(' ')[1]) + 9) % 24;
     const putRes = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
       {
         method: 'PUT',
         headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' },
         body: JSON.stringify({
-          message: `chore: update schedule to ${String(jstH).padStart(2,'0')}:00 JST`,
+          message: 'chore: update notify schedules',
           content: encodeBase64Utf8(updated),
           sha: data.sha
         })
       }
     );
     if (!putRes.ok) throw { code: 'ERR-13' };
-  }
-
-  /* 実行時刻（localStorage キャッシュ、デフォルト13） */
-  function getRunHourJst() {
-    const v = localStorage.getItem('neura_run_hour_jst');
-    return v !== null ? parseInt(v, 10) : 13;
-  }
-  function setRunHourCache(h) { localStorage.setItem('neura_run_hour_jst', h); }
-  function updateRunHourDisplays() {
-    const h = getRunHourJst();
-    const el = document.getElementById('home-sub');
-    if (el) el.textContent = `毎日${String(h).padStart(2,'0')}時に更新 — 海外・日本語ソースから厳選`;
   }
 
   /* localStorage 認証情報 */
@@ -1843,7 +1853,14 @@
     try {
       const { config, sha } = await ghGetConfig();
       currentSha = sha;
-      if (typeof config.run_hour_jst === 'number') setRunHourCache(config.run_hour_jst);
+      // 旧フィールド run_hour_jst → notify_schedules へのマイグレーション
+      if (typeof config.run_hour_jst === 'number' && !config.notify_schedules) {
+        config.notify_schedules = [
+          { hour: config.run_hour_jst, enabled: true },
+          { hour: 20, enabled: false },
+          { hour:  8, enabled: false }
+        ];
+      }
       renderSettings(config);
       document.getElementById('settings-save-btn').disabled = false;
     } catch (e) {
@@ -1866,19 +1883,34 @@
     document.getElementById('cfg-sources').innerHTML = '';
     (config.sources || []).forEach(s => addSourceRow(s.name, s.url, s.type, s.enabled));
 
-    // run_hour_jst — セレクトを生成（初回のみ）
-    const sel = document.getElementById('cfg-run-hour');
-    if (sel.options.length === 0) {
-      for (let h = 0; h < 24; h++) {
-        const opt = document.createElement('option');
-        opt.value = h;
-        opt.textContent = `${String(h).padStart(2,'0')}:00 JST`;
-        sel.appendChild(opt);
-      }
-    }
-    const runHour = typeof config.run_hour_jst === 'number' ? config.run_hour_jst : 13;
-    sel.value = runHour;
-    prevRunHourJst = runHour;
+    // notify_schedules — 3行のスケジュール行を生成
+    const defaultSchedules = [
+      { hour: 13, enabled: true },
+      { hour: 20, enabled: false },
+      { hour:  8, enabled: false }
+    ];
+    const schedules = (config.notify_schedules && config.notify_schedules.length)
+      ? config.notify_schedules.slice(0, 3)
+      : defaultSchedules;
+    while (schedules.length < 3) schedules.push({ hour: 8, enabled: false });
+    const hourOpts = Array.from({length: 24}, (_, h) =>
+      `<option value="${h}">${String(h).padStart(2,'0')}:00 JST</option>`
+    ).join('');
+    document.getElementById('cfg-schedules').innerHTML = schedules.map((s, i) => `
+      <div class="schedule-row">
+        <input type="checkbox" id="sched-${i}-en" ${s.enabled ? 'checked' : ''}
+               onchange="document.getElementById('sched-${i}-h').disabled=!this.checked">
+        <label for="sched-${i}-en">スロット ${i + 1}</label>
+        <select id="sched-${i}-h" class="settings-input" style="width:110px;cursor:pointer;"
+                ${s.enabled ? '' : 'disabled'}>${hourOpts}</select>
+      </div>`).join('');
+    schedules.forEach((s, i) => { document.getElementById(`sched-${i}-h`).value = s.hour; });
+    prevSchedules = schedules.map(s => ({ ...s }));
+
+    // max_articles — スライダー
+    const maxArt = typeof config.max_articles === 'number' ? config.max_articles : 10;
+    document.getElementById('cfg-max-articles').value = maxArt;
+    document.getElementById('cfg-max-articles-val').textContent = maxArt;
 
     // keywords
     const kw = config.keywords || { en: [], ja: [] };
@@ -1915,11 +1947,17 @@
       type: row.dataset.type || 'rss',
       enabled: row.querySelector('.src-enabled').checked
     })).filter(s => s.name && s.url);
+    const notify_schedules = [0, 1, 2].map(i => ({
+      hour: parseInt(document.getElementById(`sched-${i}-h`).value, 10),
+      enabled: document.getElementById(`sched-${i}-en`).checked
+    }));
+    const max_articles = parseInt(document.getElementById('cfg-max-articles').value, 10);
     const splitKw = v => v.split(',').map(s => s.trim()).filter(Boolean);
     return {
       genres,
       sources,
-      run_hour_jst: parseInt(document.getElementById('cfg-run-hour').value, 10),
+      notify_schedules,
+      max_articles,
       keywords: {
         en: splitKw(document.getElementById('cfg-kw-en').value),
         ja: splitKw(document.getElementById('cfg-kw-ja').value)
@@ -1946,6 +1984,14 @@
   async function saveSettings() {
     const config = collectFormConfig();
     const errEl = document.getElementById('cfg-prompt-err');
+
+    // スケジュール最低1件有効チェック
+    const schedErrEl = document.getElementById('cfg-sched-err');
+    if (!config.notify_schedules.some(s => s.enabled)) {
+      schedErrEl.style.display = '';
+      return;
+    }
+    schedErrEl.style.display = 'none';
 
     // ERR-12: {articles} 必須
     if (!config.gemini_prompt.includes('{articles}')) {
@@ -1976,13 +2022,12 @@
       return;
     }
 
-    // run_hour_jst が変更された場合のみ daily.yml も更新する
-    if (config.run_hour_jst !== prevRunHourJst) {
+    // notify_schedules が変更された場合のみ daily.yml も更新する
+    const schedulesChanged = JSON.stringify(config.notify_schedules) !== JSON.stringify(prevSchedules);
+    if (schedulesChanged) {
       try {
-        await ghPutWorkflow(jstHourToCron(config.run_hour_jst));
-        prevRunHourJst = config.run_hour_jst;
-        setRunHourCache(config.run_hour_jst);
-        updateRunHourDisplays();
+        await ghPutWorkflow(config.notify_schedules);
+        prevSchedules = config.notify_schedules.map(s => ({ ...s }));
       } catch (e) {
         showBanner(ERROR_MESSAGES['ERR-13'], true);  // config は保存済み
         btn.disabled = false;

@@ -59,7 +59,12 @@ DEFAULT_CONFIG: AppConfig = {
         "ja": ["AI", "LLM", "GPT", "Claude", "Gemini", "OpenAI", "Anthropic", "機械学習", "生成AI", "チャットボット", "エージェント"],
     },
     "gemini_prompt": DEFAULT_GEMINI_PROMPT,
-    "run_hour_jst": 13,  # デフォルト：毎日13時（JST）
+    "notify_schedules": [
+        {"hour": 13, "enabled": True},
+        {"hour": 20, "enabled": False},
+        {"hour":  8, "enabled": False},
+    ],
+    "max_articles": 10,
 }
 
 
@@ -75,6 +80,15 @@ def load_config(path: str = CONFIG_PATH) -> AppConfig:
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"[WARN]  config: config.json not found/invalid, using defaults ({e})")
         return DEFAULT_CONFIG
+
+    # 旧フィールド run_hour_jst → notify_schedules へのマイグレーション
+    if "run_hour_jst" in cfg and "notify_schedules" not in cfg:
+        h = cfg.pop("run_hour_jst")
+        cfg["notify_schedules"] = [
+            {"hour": h, "enabled": True},
+            {"hour": 20, "enabled": False},
+            {"hour":  8, "enabled": False},
+        ]
 
     # トップレベルキーの欠落をデフォルトで補完する
     merged: AppConfig = {**DEFAULT_CONFIG, **cfg}  # type: ignore[typeddict-item]

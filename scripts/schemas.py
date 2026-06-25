@@ -26,6 +26,13 @@ class Keywords(TypedDict):
     ja: list[str]
 
 
+class NotifySchedule(TypedDict):
+    """通知スケジュール1件（config.json の notify_schedules 要素）。"""
+
+    hour: int    # JST 0〜23
+    enabled: bool
+
+
 class AppConfig(TypedDict):
     """収集設定（config/config.json 全体）。"""
 
@@ -33,7 +40,8 @@ class AppConfig(TypedDict):
     sources: list[Source]
     keywords: Keywords
     gemini_prompt: str  # {articles} プレースホルダーを含む
-    run_hour_jst: int  # GitHub Actions の実行時刻（JST 0〜23）
+    notify_schedules: list[NotifySchedule]  # 通知スケジュール（最大3件）
+    max_articles: int   # 1回の通知で選出する記事の上限件数（1〜10）
 
 
 class CollectedArticle(TypedDict):

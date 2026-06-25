@@ -20,7 +20,7 @@ OUTPUT_PATH = "/tmp/neura_summarized.json"
 MODEL_NAME = "gemini-2.5-flash"
 GEMINI_TIMEOUT = 30  # NF-01
 BODY_MAX_CHARS_IN_PROMPT = 3000
-MAX_ARTICLES = 10
+MAX_ARTICLES = 10  # config.max_articles が未設定の場合のフォールバック
 
 
 def load_json(path: str):
@@ -37,11 +37,11 @@ def normalize_url(url: str) -> str:
     return url.rstrip("/").split("?")[0]
 
 
-def select_articles(result: list[Article], genres: dict[str, bool]) -> list[Article]:
-    """無効カテゴリ(genres=false)を除外し、重要度降順で上位 MAX_ARTICLES 件を返す。"""
+def select_articles(result: list[Article], genres: dict[str, bool], max_articles: int = MAX_ARTICLES) -> list[Article]:
+    """無効カテゴリ(genres=false)を除外し、重要度降順で上位 max_articles 件を返す。"""
     enabled = {g for g, on in genres.items() if on}
     filtered = [r for r in result if r.get("category") in enabled]
-    return sorted(filtered, key=lambda x: x.get("importance", 0), reverse=True)[:MAX_ARTICLES]
+    return sorted(filtered, key=lambda x: x.get("importance", 0), reverse=True)[:max_articles]
 
 
 def build_prompt(articles: list[CollectedArticle], template: str) -> str:
@@ -119,7 +119,9 @@ def main() -> None:
     result = deduped
 
     # FR-06：無効カテゴリ（genres=false）を除外してから重要度上位を選定する
-    result_sorted = select_articles(result, config["genres"])
+    max_articles = int(config.get("max_articles", MAX_ARTICLES))
+    max_articles = max(1, min(10, max_articles))  # 1〜10 にクランプ
+    result_sorted = select_articles(result, config["genres"], max_articles)
     if not result_sorted:
         print("[WARN]  summarize: 有効カテゴリの記事が0件（genres設定を確認）")
 
