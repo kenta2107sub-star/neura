@@ -964,12 +964,19 @@
       font-family: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; flex-shrink: 0;
     }
     .source-row .src-del:hover { color: var(--error); border-color: var(--error); }
-    .schedule-list { display: flex; flex-direction: column; gap: 8px; }
-    .schedule-row { display: flex; align-items: center; gap: 10px; }
-    .schedule-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; }
-    .schedule-row label { font-size: 12px; color: var(--sub); min-width: 54px; cursor: pointer; }
-    .schedule-row select:disabled { opacity: 0.38; cursor: not-allowed; }
-    .settings-slider { width: 200px; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
+    .schedule-list { display: flex; flex-direction: column; gap: 10px; }
+    .slot-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .slot-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); }
+    .slot-header input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; cursor: pointer; }
+    .slot-header label { font-size: 12px; color: var(--sub); min-width: 54px; cursor: pointer; }
+    .slot-header select { cursor: pointer; }
+    .slot-header select:disabled { opacity: 0.38; cursor: not-allowed; }
+    .slot-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); }
+    .slot-body.is-disabled { opacity: 0.38; pointer-events: none; }
+    .slot-field { display: flex; flex-direction: column; gap: 5px; }
+    .slot-field > .slot-label { font-size: 11px; color: var(--sub); letter-spacing: 0.02em; }
+    .slot-genres { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+    .settings-slider { width: 180px; accent-color: var(--accent); cursor: pointer; vertical-align: middle; }
     .settings-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
     .settings-toast {
       position: fixed; bottom: 56px; right: 24px; z-index: 200;
@@ -1144,12 +1151,6 @@
         </div>
       </div>
 
-      <!-- ジャンル -->
-      <div class="settings-section">
-        <h2 class="settings-h2">## ニュースジャンル</h2>
-        <div class="settings-checks" id="cfg-genres"></div>
-      </div>
-
       <!-- ソース -->
       <div class="settings-section">
         <h2 class="settings-h2">## 収集ソース</h2>
@@ -1157,21 +1158,12 @@
         <button class="action-btn action-btn--translate" style="margin-top:10px;" onclick="addSourceRow()">[ + RSSソースを追加 ]</button>
       </div>
 
-      <!-- 実行スケジュール -->
+      <!-- 実行スケジュール（ジャンル・件数はスロット毎に設定） -->
       <div class="settings-section">
         <h2 class="settings-h2">## 実行スケジュール</h2>
         <div id="cfg-schedules" class="schedule-list"></div>
         <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）</p>
         <p class="settings-fielderr" id="cfg-sched-err" style="display:none;margin-top:4px;">少なくとも1つのスケジュールを有効にしてください。</p>
-      </div>
-
-      <div class="settings-section">
-        <h2 class="settings-h2">## 通知件数</h2>
-        <div class="settings-field">
-          <label>1回あたりの最大通知件数: <strong id="cfg-max-articles-val">10</strong> 件</label>
-          <input type="range" id="cfg-max-articles" class="settings-slider" min="1" max="10" value="10"
-                 oninput="document.getElementById('cfg-max-articles-val').textContent = this.value">
-        </div>
       </div>
 
       <!-- キーワード -->
@@ -1709,8 +1701,11 @@
   /* ── Settings (SCR-04 / FR-06) ── */
   const GENRE_ORDER = ['ニュース','研究','活用事例','ツール'];
 
+  const GENRE_ORDER = ['ニュース', '研究', '活用事例', 'ツール'];
+  const GENRE_KEY   = { 'ニュース': 'news', '研究': 'research', '活用事例': 'usecase', 'ツール': 'tool' };
+  const DEFAULT_GENRES_JS = { 'ニュース': true, '研究': true, '活用事例': true, 'ツール': true };
+
   const DEFAULT_CONFIG_JS = {
-    genres: { 'ニュース': true, '研究': true, '活用事例': true, 'ツール': true },
     sources: [
       { name: 'Hacker News', url: 'https://hacker-news.firebaseio.com/v0/topstories.json', type: 'hackernews', enabled: true },
       { name: 'Reddit r/artificial', url: 'https://www.reddit.com/r/artificial/top/.rss?t=day', type: 'reddit', enabled: true },
@@ -1727,11 +1722,10 @@
     },
     gemini_prompt: '以下のAI関連記事から、最も重要・興味深い5〜10件を選び、\n各記事について以下の形式でJSON配列を返してください。\n海外・日本語の両ソースからバランスよく選んでください。\n\n各記事のJSONフィールド：\n- url: 元記事のURLをそのまま返す（変更禁止）\n- title_ja: 日本語タイトル（30文字以内）\n- summary_ja: 日本語要約（80文字以内）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n- category: "ニュース" | "研究" | "活用事例" | "ツール" のいずれか\n- importance: 1〜5の整数（5が最重要）\n\n記事一覧:\n{articles}\n\nJSON配列のみを返してください。',
     notify_schedules: [
-      { hour: 13, enabled: true },
-      { hour: 20, enabled: false },
-      { hour:  8, enabled: false }
-    ],
-    max_articles: 10
+      { hour: 13, enabled: true,  max_articles: 10, genres: { 'ニュース': true, '研究': true, '活用事例': true, 'ツール': true } },
+      { hour: 20, enabled: false, max_articles: 10, genres: { 'ニュース': true, '研究': true, '活用事例': true, 'ツール': true } },
+      { hour:  8, enabled: false, max_articles: 10, genres: { 'ニュース': true, '研究': true, '活用事例': true, 'ツール': true } }
+    ]
   };
 
   const ERROR_MESSAGES = {
@@ -1861,6 +1855,13 @@
           { hour:  8, enabled: false }
         ];
       }
+      // 旧グローバル genres / max_articles → スロット内へのマイグレーション
+      const globalGenres = config.genres || null;
+      const globalMax = typeof config.max_articles === 'number' ? config.max_articles : null;
+      (config.notify_schedules || []).forEach(slot => {
+        if (!slot.genres) slot.genres = globalGenres ? { ...globalGenres } : { ...DEFAULT_GENRES_JS };
+        if (typeof slot.max_articles !== 'number') slot.max_articles = globalMax !== null ? globalMax : 10;
+      });
       renderSettings(config);
       document.getElementById('settings-save-btn').disabled = false;
     } catch (e) {
@@ -1871,46 +1872,52 @@
   }
 
   function renderSettings(config) {
-    // genres
-    const genres = config.genres || {};
-    document.getElementById('cfg-genres').innerHTML = GENRE_ORDER.map(g => `
-      <label class="settings-check">
-        <input type="checkbox" data-genre="${g}" ${genres[g] !== false ? 'checked' : ''}>
-        <span>${g}</span>
-      </label>`).join('');
-
     // sources
     document.getElementById('cfg-sources').innerHTML = '';
     (config.sources || []).forEach(s => addSourceRow(s.name, s.url, s.type, s.enabled));
 
-    // notify_schedules — 3行のスケジュール行を生成
-    const defaultSchedules = [
-      { hour: 13, enabled: true },
-      { hour: 20, enabled: false },
-      { hour:  8, enabled: false }
-    ];
+    // notify_schedules — スロットカードを生成（ジャンル・件数をスロット毎に設定）
+    const defaultSchedules = DEFAULT_CONFIG_JS.notify_schedules;
     const schedules = (config.notify_schedules && config.notify_schedules.length)
       ? config.notify_schedules.slice(0, 3)
       : defaultSchedules;
-    while (schedules.length < 3) schedules.push({ hour: 8, enabled: false });
+    while (schedules.length < 3) schedules.push({ hour: 8, enabled: false, max_articles: 10, genres: { ...DEFAULT_GENRES_JS } });
     const hourOpts = Array.from({length: 24}, (_, h) =>
       `<option value="${h}">${String(h).padStart(2,'0')}:00 JST</option>`
     ).join('');
-    document.getElementById('cfg-schedules').innerHTML = schedules.map((s, i) => `
-      <div class="schedule-row">
-        <input type="checkbox" id="sched-${i}-en" ${s.enabled ? 'checked' : ''}
-               onchange="document.getElementById('sched-${i}-h').disabled=!this.checked">
-        <label for="sched-${i}-en">スロット ${i + 1}</label>
-        <select id="sched-${i}-h" class="settings-input" style="width:110px;cursor:pointer;"
-                ${s.enabled ? '' : 'disabled'}>${hourOpts}</select>
-      </div>`).join('');
+    document.getElementById('cfg-schedules').innerHTML = schedules.map((s, i) => {
+      const isDisabled = !s.enabled;
+      const slotGenres = s.genres || { ...DEFAULT_GENRES_JS };
+      const maxArt = typeof s.max_articles === 'number' ? s.max_articles : 10;
+      const genreChecks = GENRE_ORDER.map(g => `
+          <label class="settings-check">
+            <input type="checkbox" id="sched-${i}-g-${GENRE_KEY[g]}" ${slotGenres[g] !== false ? 'checked' : ''}>
+            <span>${g}</span>
+          </label>`).join('');
+      return `
+      <div class="slot-card">
+        <div class="slot-header">
+          <input type="checkbox" id="sched-${i}-en" ${s.enabled ? 'checked' : ''}
+                 onchange="toggleSlotBody(${i}, this.checked)">
+          <label for="sched-${i}-en">スロット ${i + 1}</label>
+          <select id="sched-${i}-h" class="settings-input" style="width:110px;"
+                  ${isDisabled ? 'disabled' : ''}>${hourOpts}</select>
+        </div>
+        <div class="slot-body${isDisabled ? ' is-disabled' : ''}" id="sched-${i}-body">
+          <div class="slot-field">
+            <span class="slot-label">ジャンル</span>
+            <div class="slot-genres">${genreChecks}</div>
+          </div>
+          <div class="slot-field">
+            <span class="slot-label">件数: <strong id="sched-${i}-max-val">${maxArt}</strong> 件</span>
+            <input type="range" class="settings-slider" id="sched-${i}-max" min="1" max="10" value="${maxArt}"
+                   oninput="document.getElementById('sched-${i}-max-val').textContent=this.value">
+          </div>
+        </div>
+      </div>`;
+    }).join('');
     schedules.forEach((s, i) => { document.getElementById(`sched-${i}-h`).value = s.hour; });
     prevSchedules = schedules.map(s => ({ ...s }));
-
-    // max_articles — スライダー
-    const maxArt = typeof config.max_articles === 'number' ? config.max_articles : 10;
-    document.getElementById('cfg-max-articles').value = maxArt;
-    document.getElementById('cfg-max-articles-val').textContent = maxArt;
 
     // keywords
     const kw = config.keywords || { en: [], ja: [] };
@@ -1920,6 +1927,11 @@
     // prompt
     document.getElementById('cfg-prompt').value = config.gemini_prompt || '';
     document.getElementById('cfg-prompt-err').style.display = 'none';
+  }
+
+  function toggleSlotBody(i, enabled) {
+    document.getElementById(`sched-${i}-h`).disabled = !enabled;
+    document.getElementById(`sched-${i}-body`).classList.toggle('is-disabled', !enabled);
   }
 
   function addSourceRow(name = '', url = '', type = 'rss', enabled = true) {
@@ -1937,27 +1949,29 @@
   }
 
   function collectFormConfig() {
-    const genres = {};
-    document.querySelectorAll('#cfg-genres input[data-genre]').forEach(el => {
-      genres[el.dataset.genre] = el.checked;
-    });
     const sources = [...document.querySelectorAll('#cfg-sources .source-row')].map(row => ({
       name: row.querySelector('.src-name').value.trim(),
       url: row.querySelector('.src-url').value.trim(),
       type: row.dataset.type || 'rss',
       enabled: row.querySelector('.src-enabled').checked
     })).filter(s => s.name && s.url);
-    const notify_schedules = [0, 1, 2].map(i => ({
-      hour: parseInt(document.getElementById(`sched-${i}-h`).value, 10),
-      enabled: document.getElementById(`sched-${i}-en`).checked
-    }));
-    const max_articles = parseInt(document.getElementById('cfg-max-articles').value, 10);
+    const notify_schedules = [0, 1, 2].map(i => {
+      const genres = {};
+      GENRE_ORDER.forEach(g => {
+        const el = document.getElementById(`sched-${i}-g-${GENRE_KEY[g]}`);
+        genres[g] = el ? el.checked : true;
+      });
+      return {
+        hour: parseInt(document.getElementById(`sched-${i}-h`).value, 10),
+        enabled: document.getElementById(`sched-${i}-en`).checked,
+        max_articles: parseInt(document.getElementById(`sched-${i}-max`).value, 10),
+        genres
+      };
+    });
     const splitKw = v => v.split(',').map(s => s.trim()).filter(Boolean);
     return {
-      genres,
       sources,
       notify_schedules,
-      max_articles,
       keywords: {
         en: splitKw(document.getElementById('cfg-kw-en').value),
         ja: splitKw(document.getElementById('cfg-kw-ja').value)

@@ -40,8 +40,10 @@ DEFAULT_GEMINI_PROMPT = (
     "JSON配列のみを返してください。説明文・マークダウンの囲み・前後の文章は不要です。"
 )
 
+DEFAULT_GENRES = {"ニュース": True, "研究": True, "活用事例": True, "ツール": True}
+DEFAULT_MAX_ARTICLES = 10
+
 DEFAULT_CONFIG: AppConfig = {
-    "genres": {"ニュース": True, "研究": True, "活用事例": True, "ツール": True},
     "sources": [
         {"name": "Hacker News", "url": "https://hacker-news.firebaseio.com/v0/topstories.json", "type": "hackernews", "enabled": True},
         {"name": "Reddit r/artificial", "url": "https://www.reddit.com/r/artificial/top/.rss?t=day", "type": "reddit", "enabled": True},
@@ -60,11 +62,10 @@ DEFAULT_CONFIG: AppConfig = {
     },
     "gemini_prompt": DEFAULT_GEMINI_PROMPT,
     "notify_schedules": [
-        {"hour": 13, "enabled": True},
-        {"hour": 20, "enabled": False},
-        {"hour":  8, "enabled": False},
+        {"hour": 13, "enabled": True,  "max_articles": DEFAULT_MAX_ARTICLES, "genres": DEFAULT_GENRES},
+        {"hour": 20, "enabled": False, "max_articles": DEFAULT_MAX_ARTICLES, "genres": DEFAULT_GENRES},
+        {"hour":  8, "enabled": False, "max_articles": DEFAULT_MAX_ARTICLES, "genres": DEFAULT_GENRES},
     ],
-    "max_articles": 10,
 }
 
 
@@ -89,6 +90,15 @@ def load_config(path: str = CONFIG_PATH) -> AppConfig:
             {"hour": 20, "enabled": False},
             {"hour":  8, "enabled": False},
         ]
+
+    # グローバル genres / max_articles → スロット内へのマイグレーション
+    global_genres = cfg.pop("genres", DEFAULT_GENRES)
+    global_max = int(cfg.pop("max_articles", DEFAULT_MAX_ARTICLES))
+    for slot in cfg.get("notify_schedules", []):
+        if "genres" not in slot:
+            slot["genres"] = dict(global_genres)
+        if "max_articles" not in slot:
+            slot["max_articles"] = global_max
 
     # トップレベルキーの欠落をデフォルトで補完する
     merged: AppConfig = {**DEFAULT_CONFIG, **cfg}  # type: ignore[typeddict-item]

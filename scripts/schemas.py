@@ -29,19 +29,19 @@ class Keywords(TypedDict):
 class NotifySchedule(TypedDict):
     """通知スケジュール1件（config.json の notify_schedules 要素）。"""
 
-    hour: int    # JST 0〜23
+    hour: int               # JST 0〜23
     enabled: bool
+    max_articles: int       # このスロットの通知件数上限（1〜10）
+    genres: dict[str, bool] # このスロットで通知するジャンル
 
 
 class AppConfig(TypedDict):
     """収集設定（config/config.json 全体）。"""
 
-    genres: dict[str, bool]  # {"ニュース": True, "研究": True, ...}
     sources: list[Source]
     keywords: Keywords
     gemini_prompt: str  # {articles} プレースホルダーを含む
     notify_schedules: list[NotifySchedule]  # 通知スケジュール（最大3件）
-    max_articles: int   # 1回の通知で選出する記事の上限件数（1〜10）
 
 
 class CollectedArticle(TypedDict):

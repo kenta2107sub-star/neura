@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timezone, timedelta
 
 from config_loader import DEFAULT_GEMINI_PROMPT, load_config
 from schemas import Article, CollectedArticle
@@ -20,7 +21,20 @@ OUTPUT_PATH = "/tmp/neura_summarized.json"
 MODEL_NAME = "gemini-2.5-flash"
 GEMINI_TIMEOUT = 30  # NF-01
 BODY_MAX_CHARS_IN_PROMPT = 3000
-MAX_ARTICLES = 10  # config.max_articles が未設定の場合のフォールバック
+MAX_ARTICLES = 10  # スロット設定が未設定の場合のフォールバック
+JST = timezone(timedelta(hours=9))
+
+
+def get_current_slot(notify_schedules: list) -> dict:
+    """現在の JST 時刻に対応するスロットを返す。一致しなければ最初の有効スロットを返す。"""
+    current_hour = datetime.now(JST).hour
+    for slot in notify_schedules:
+        if slot.get("enabled") and slot.get("hour") == current_hour:
+            return slot
+    for slot in notify_schedules:
+        if slot.get("enabled"):
+            return slot
+    return {}
 
 
 def load_json(path: str):
@@ -118,10 +132,14 @@ def main() -> None:
         print(f"[WARN]  summarize: Gemini重複 {len(result) - len(deduped)}件を除去")
     result = deduped
 
+    # 現在のスロット設定を取得（JST 時刻で照合）
+    slot = get_current_slot(config.get("notify_schedules", []))
+    slot_genres = slot.get("genres") or {"ニュース": True, "研究": True, "活用事例": True, "ツール": True}
+    slot_max = max(1, min(10, int(slot.get("max_articles", MAX_ARTICLES))))
+    print(f"[INFO]  summarize: スロット hour={slot.get('hour','?')} genres={list(slot_genres)} max={slot_max}")
+
     # FR-06：無効カテゴリ（genres=false）を除外してから重要度上位を選定する
-    max_articles = int(config.get("max_articles", MAX_ARTICLES))
-    max_articles = max(1, min(10, max_articles))  # 1〜10 にクランプ
-    result_sorted = select_articles(result, config["genres"], max_articles)
+    result_sorted = select_articles(result, slot_genres, slot_max)
     if not result_sorted:
         print("[WARN]  summarize: 有効カテゴリの記事が0件（genres設定を確認）")
 
