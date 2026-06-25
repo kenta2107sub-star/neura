@@ -19,20 +19,26 @@
 
 ### 1-1. `docs/data/index.json`（日付インデックス）
 
-ホーム画面（SCR-01）が**1回のfetchで日付一覧・記事件数・カテゴリ分布バー**を描画できるよう、各日付のメタ情報（件数・カテゴリ内訳）を保持する。
+ホーム画面（SCR-01）が**1回のfetchで日付一覧・記事件数・カテゴリ分布バー**を描画できるよう、各実行スロットのメタ情報を保持する。1日複数回通知設定の場合、同日に複数エントリが存在する。
 
 ```json
 {
   "digests": [
     {
       "date": "2026-06-18",
+      "time": "18:00",
+      "file": "2026-06-18_18",
       "count": 7,
-      "categories": { "ニュース": 3, "研究": 1, "活用事例": 1, "ツール": 2 }
+      "categories": { "ニュース": 3, "研究": 1, "活用事例": 1, "ツール": 2 },
+      "titles": [{"t": "記事タイトル", "c": "ニュース"}]
     },
     {
-      "date": "2026-06-17",
+      "date": "2026-06-18",
+      "time": "08:00",
+      "file": "2026-06-18_08",
       "count": 5,
-      "categories": { "ニュース": 2, "ツール": 3 }
+      "categories": { "ニュース": 2, "ツール": 3 },
+      "titles": []
     }
   ]
 }
@@ -40,15 +46,19 @@
 
 | フィールド | 型 | 必須 | 制約 | 説明 |
 |---|---|---|---|---|
-| `digests` | `DigestMeta[]` | ✅ | 降順ソート・最大100件 | 日次JSONが存在する日付のメタ情報一覧 |
-| `digests[].date` | `string` | ✅ | YYYY-MM-DD | 対象日付 |
-| `digests[].count` | `number` | ✅ | 0以上 | その日の記事件数 |
-| `digests[].categories` | `dict[str,int]` | ✅ | 存在するカテゴリのみ | カテゴリ別件数（0件のカテゴリはキーごと省略可） |
+| `digests` | `DigestMeta[]` | ✅ | 降順ソート・最大100件 | 各実行スロットのメタ情報一覧 |
+| `digests[].date` | `string` | ✅ | YYYY-MM-DD（JST） | 対象日付 |
+| `digests[].time` | `string` | ✅ | HH:00（JST） | 実行時刻 |
+| `digests[].file` | `string` | ✅ | `YYYY-MM-DD_HH` | 日次JSONのファイル名（拡張子なし）。フェッチ先は `docs/data/${file}.json` |
+| `digests[].count` | `number` | ✅ | 0以上 | 記事件数 |
+| `digests[].categories` | `dict[str,int]` | ✅ | 存在するカテゴリのみ | カテゴリ別件数 |
+| `digests[].titles` | `{t:string,c:string}[]` | ✅ | 最大10件 | ホームに表示する記事タイトル一覧 |
 
-- `archive.py` が毎日更新する（日次データから件数・カテゴリ内訳を集計して追記）
+- `archive.py` が各実行後に更新する。同一 `(date, time)` キーは上書き、異なるキーは追記。
 - 100件を超えた場合は末尾（最古）から削除する
 - `docs/index.html` が起動時にfetchする
-- 検索（SCR-03）は `digests[].date` を列挙して各日次JSONを取得する
+- 検索（SCR-03）は `digests[].file` を列挙して各日次JSONを並列取得する
+- **後方互換**：`file` フィールドがない旧エントリは `date` フィールドをファイル名として使用する
 
 ---
 
@@ -762,27 +772,44 @@ def main():
         shutil.copy(status_src, os.path.join(DATA_DIR, "collect_status.json"))
         print("[INFO]  archive: collect_status.json 更新")
 
-    # 1. 日次JSONを生成
+    # JST時刻を計算（ファイル名・timeフィールドに使用）
+    now_jst = datetime.now(tz=timezone.utc) + timedelta(hours=9)
+    today = now_jst.strftime("%Y-%m-%d")
+    hour_jst = now_jst.hour
+    file_key = f"{today}_{hour_jst:02d}"   # 例: "2026-06-25_18"
+    time_str = f"{hour_jst:02d}:00"        # 例: "18:00"
+
+    # 1. 日次JSONを生成（ファイル名に時刻を含める）
     daily_data = {
         "date": today,
+        "time": time_str,
         "generated_at": generated_at,
         "articles": articles
     }
-    daily_path = f"docs/data/{today}.json"
+    daily_path = f"docs/data/{file_key}.json"   # 例: docs/data/2026-06-25_18.json
     save_json(daily_path, daily_data)
     print(f"[INFO] Created {daily_path}")
 
     # 2. index.jsonを更新（件数・カテゴリ内訳を集計して追記）
     from collections import Counter
     cats = Counter(a["category"] for a in articles)
-    meta = {"date": today, "count": len(articles), "categories": dict(cats)}
+    titles = [{"t": a.get("title_ja",""), "c": a.get("category","")} for a in articles[:10]]
+    meta = {
+        "date": today,
+        "time": time_str,
+        "file": file_key,
+        "count": len(articles),
+        "categories": dict(cats),
+        "titles": titles,
+    }
 
     index_path = "docs/data/index.json"
     index = load_json(index_path) if os.path.exists(index_path) else {"digests": []}
-    # 同一日付の既存エントリを除去してから先頭に追加（再実行で重複させない）
-    index["digests"] = [d for d in index["digests"] if d["date"] != today]
-    index["digests"].insert(0, meta)           # 先頭に追加（降順を維持）
-    index["digests"] = index["digests"][:100]  # 最大100件
+    # 同一 (date, time) の既存エントリを除去してから先頭に追加
+    key = (today, time_str)
+    index["digests"] = [d for d in index["digests"] if (d["date"], d.get("time","")) != key]
+    index["digests"].insert(0, meta)
+    index["digests"] = index["digests"][:100]
     save_json(index_path, index)
     print(f"[INFO] Updated index.json: {len(index['digests'])} digests")
 
@@ -878,19 +905,20 @@ async function loadHome() {
     }
 }
 
-// 日次JSONを取得してSCR-02を描画する
-async function loadDetail(date) {
+// 日次JSONを取得してSCR-02を描画する（fileは "2026-06-25_18" 形式）
+async function loadDetail(file) {
+    const date = file.slice(0, 10);  // 表示用日付を抽出
     try {
-        const res = await fetch(`./data/${date}.json`);
+        const res = await fetch(`./data/${file}.json`);
         if (!res.ok) throw new Error(res.status);
         const digest = await res.json();
-        renderDetail(digest);
+        renderDetail(digest, date);
     } catch (e) {
         showState('detail', 'error');
     }
 }
 
-// 全日付のJSONを並列fetchしてSCR-03を描画する
+// 全スロットのJSONを並列fetchしてSCR-03を描画する
 async function loadSearch(q) {
     showState('search', 'loading');
     try {
@@ -898,9 +926,10 @@ async function loadSearch(q) {
         const index = await indexRes.json();
 
         // 全日次JSONを並列取得（一部失敗してもallSettledで続行）
+        // meta.file がある場合はそれを、ない場合は meta.date をファイル名として使用（後方互換）
         const digests = await Promise.allSettled(
-            index.digests.map(({ date }) =>
-                fetch(`./data/${date}.json`).then(r => r.json()).then(d => ({ date, digest: d }))
+            index.digests.map(meta =>
+                fetch(`./data/${meta.file || meta.date}.json`).then(r => r.json()).then(d => ({ date: meta.date, digest: d }))
             )
         );
 

@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from schemas import Article
 
@@ -34,17 +34,25 @@ def save_json(path: str, data) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def build_index_meta(today: str, articles: list[Article]) -> dict:
+def build_index_meta(today: str, time_str: str, file_key: str, articles: list[Article]) -> dict:
     """日次記事から index 用メタ（件数・カテゴリ内訳・タイトル一覧）を生成する。"""
     cats = Counter(a.get("category", "") for a in articles)
     cats.pop("", None)
-    titles = [{"t": a.get("title_ja", ""), "c": a.get("category", "")} for a in articles]
-    return {"date": today, "count": len(articles), "categories": dict(cats), "titles": titles}
+    titles = [{"t": a.get("title_ja", ""), "c": a.get("category", "")} for a in articles[:10]]
+    return {
+        "date": today,
+        "time": time_str,
+        "file": file_key,
+        "count": len(articles),
+        "categories": dict(cats),
+        "titles": titles,
+    }
 
 
 def update_index(index: dict, meta: dict) -> dict:
-    """index に meta を追加する。同一日付は除去して先頭に追加し、最大100件に切り詰める。"""
-    digests = [d for d in index.get("digests", []) if d.get("date") != meta["date"]]
+    """index に meta を追加する。同一 (date, time) は除去して先頭に追加し、最大100件に切り詰める。"""
+    key = (meta["date"], meta.get("time", ""))
+    digests = [d for d in index.get("digests", []) if (d.get("date"), d.get("time", "")) != key]
     digests.insert(0, meta)
     return {"digests": digests[:MAX_INDEX_DATES]}
 
@@ -67,7 +75,11 @@ def run_git_commands(today: str) -> None:
 
 def main() -> None:
     articles: list[Article] = load_json(INPUT_PATH)
-    today = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+    now_jst = datetime.now(tz=timezone.utc) + timedelta(hours=9)
+    today = now_jst.strftime("%Y-%m-%d")
+    hour_jst = now_jst.hour
+    file_key = f"{today}_{hour_jst:02d}"
+    time_str = f"{hour_jst:02d}:00"
     generated_at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # 0. ソース別収集ステータスファイルをリポジトリへコピー（git add docs/data/ で一緒にコミット）
@@ -76,14 +88,14 @@ def main() -> None:
         shutil.copy(STATUS_SRC_PATH, os.path.join(DATA_DIR, "collect_status.json"))
         print(f"[INFO]  archive: collect_status.json 更新")
 
-    # 1. 日次JSONを生成
-    daily_data = {"date": today, "generated_at": generated_at, "articles": articles}
-    daily_path = os.path.join(DATA_DIR, f"{today}.json")
+    # 1. 日次JSONを生成（ファイル名に JST 時刻を含める）
+    daily_data = {"date": today, "time": time_str, "generated_at": generated_at, "articles": articles}
+    daily_path = os.path.join(DATA_DIR, f"{file_key}.json")
     save_json(daily_path, daily_data)
     print(f"[INFO]  archive: {daily_path} 生成")
 
-    # 2. index.json を更新（件数・カテゴリ内訳を集計して追記。降順・最大100件）
-    meta = build_index_meta(today, articles)
+    # 2. index.json を更新（件数・カテゴリ内訳を集計して追記。同一(date,time)は上書き、最大100件）
+    meta = build_index_meta(today, time_str, file_key, articles)
     index = load_json(INDEX_PATH) if os.path.exists(INDEX_PATH) else {"digests": []}
     index = update_index(index, meta)
     save_json(INDEX_PATH, index)

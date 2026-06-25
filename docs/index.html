@@ -244,6 +244,25 @@
     }
     .date-card:focus { outline: 1px solid var(--accent); outline-offset: -1px; }
 
+    /* アニメーション定義 */
+    @keyframes blink-badge { 0%,100%{opacity:1} 50%{opacity:0} }
+    @keyframes scan-line-anim { 0%{top:-100%} 100%{top:200%} }
+    @keyframes fade-slide-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+    /* date-tile ラッパー（tile + LATEST バッジを縦に並べる） */
+    .date-tile-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    /* 同日2回目以降のエントリ用スペーサー（tile と同幅・高さなし） */
+    .date-tile-spacer { width: 46px; flex-shrink: 0; }
+
+    /* カード単位のフェードイン */
+    .date-card-anim { animation: fade-slide-in 0.4s ease both; }
+
     /* calendar tile */
     .date-tile {
       flex-shrink: 0;
@@ -256,17 +275,30 @@
       border: 1px solid var(--border-mid);
       background: var(--surface);
       line-height: 1;
+      position: relative;
+      overflow: hidden;
       transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    /* スキャンライン（最新エントリの tile 内を流れる） */
+    .scan-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 40%;
+      background: linear-gradient(to bottom, transparent, rgba(0,255,65,0.18), transparent);
+      animation: scan-line-anim 2.5s linear infinite;
+      pointer-events: none;
     }
     .date-tile-day {
       font-size: 18px;
       font-weight: 700;
       color: var(--text-bright);
+      position: relative;
     }
     .date-tile-wd {
       font-size: 10px;
       color: var(--sub);
       margin-top: 3px;
+      position: relative;
     }
     .date-card:hover .date-tile { border-color: var(--accent); }
     .date-card--latest .date-tile {
@@ -299,13 +331,21 @@
     }
     .date-card:hover .date-card-date { color: var(--accent); }
     .latest-tag {
-      font-size: 9px;
+      font-size: 8px;
       font-weight: 700;
       letter-spacing: 0.08em;
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      padding: 1px 6px;
-      text-shadow: 0 0 6px rgba(0,255,65,0.4);
+      color: #080808;
+      background: var(--accent);
+      padding: 2px 0;
+      width: 46px;
+      text-align: center;
+      box-sizing: border-box;
+      animation: blink-badge 2s step-end infinite;
+    }
+    .date-card-time {
+      font-size: 10px;
+      color: var(--sub);
+      font-family: var(--font-mono, monospace);
     }
 
     /* category distribution bar */
@@ -1346,10 +1386,10 @@
     currentDate = null;
     loadHome();
   }
-  function showDetail(date) {
+  function showDetail(file) {
     activateScreen('scr-02');
-    currentDate = date;
-    loadDetail(date);
+    currentDate = file;
+    loadDetail(file);
   }
   function showSearch(q) {
     activateScreen('scr-03');
@@ -1369,13 +1409,13 @@
     window.history.pushState({}, '', url);
     showHome();
   }
-  function goDetail(date) {
+  function goDetail(file) {
     const url = new URL(window.location.href);
-    url.searchParams.set('date', date);
+    url.searchParams.set('date', file);
     url.searchParams.delete('q');
     url.searchParams.delete('view');
     window.history.pushState({}, '', url);
-    showDetail(date);
+    showDetail(file);
   }
   function goSearch(q) {
     const url = new URL(window.location.href);
@@ -1426,7 +1466,9 @@
     }
     const months = Object.keys(byMonth).sort((a,b) => b.localeCompare(a));
     const latestMonth = months[0];
-    const latestDate = digests[0].date;
+    const absoluteLatestFile = digests[0].file || digests[0].date;
+    const seenDates = new Set();
+    let globalIdx = 0;
 
     const list = document.getElementById('date-list');
     list.innerHTML = months.map(ym => {
@@ -1437,11 +1479,16 @@
 
       const cards = metas.map(meta => {
         const date = meta.date;
+        const file = meta.file || date;
         const hasData = (meta.count || 0) > 0;
         const count = hasData ? String(meta.count).padStart(2,'0') : '--';
         const [yy, mm, dd] = date.split('-');
         const wd = WEEKDAYS[new Date(+yy, +mm - 1, +dd).getDay()];
-        const isLatest = date === latestDate;
+        const isAbsoluteLatest = file === absoluteLatestFile;
+        const isFirstOfDate = !seenDates.has(date);
+        const animDelay = `${globalIdx * 0.06}s`;
+        seenDates.add(date);
+        globalIdx++;
 
         let catBarHtml;
         const counts = meta.categories || {};
@@ -1468,16 +1515,26 @@
             }).join('') + '</span>'
           : '';
 
+        const tileHtml = isFirstOfDate
+          ? `<span class="date-tile-wrap">
+               <span class="date-tile" aria-hidden="true">
+                 ${isAbsoluteLatest ? '<span class="scan-line" aria-hidden="true"></span>' : ''}
+                 <span class="date-tile-day">${dd}</span>
+                 <span class="date-tile-wd">${wd}</span>
+               </span>
+               ${isAbsoluteLatest ? '<span class="latest-tag">LATEST</span>' : ''}
+             </span>`
+          : `<span class="date-tile-spacer" aria-hidden="true"></span>`;
+
+        const timeHtml = meta.time ? `<span class="date-card-time">${meta.time}</span>` : '';
+
         return `
-          <a class="date-card${isLatest ? ' date-card--latest' : ''}${hasData ? '' : ' date-card--nodata'}" href="javascript:void(0)" onclick="goDetail('${date}')" tabindex="0" aria-label="${formatDate(date)} ${hasData ? count + '件' : 'データなし'}">
-            <span class="date-tile" aria-hidden="true">
-              <span class="date-tile-day">${dd}</span>
-              <span class="date-tile-wd">${wd}</span>
-            </span>
+          <a class="date-card date-card-anim${isAbsoluteLatest ? ' date-card--latest' : ''}${hasData ? '' : ' date-card--nodata'}" style="animation-delay:${animDelay}" href="javascript:void(0)" onclick="goDetail('${file}')" tabindex="0" aria-label="${formatDate(date)} ${hasData ? count + '件' : 'データなし'}">
+            ${tileHtml}
             <span class="date-main">
               <span class="date-main-top">
                 <span class="date-card-date">${yy}/${mm}/${dd}</span>
-                ${isLatest ? '<span class="latest-tag">● LATEST</span>' : ''}
+                ${timeHtml}
               </span>
               ${titlesHtml}
             </span>
@@ -1510,12 +1567,13 @@
   }
 
   /* ── Detail ── */
-  async function loadDetail(date) {
+  async function loadDetail(file) {
+    const date = file.slice(0, 10);
     const states = { loading:'detail-loading', content:'detail-content', error:'detail-error' };
     setVisible(states,'loading');
     let digest;
     try {
-      const res = await fetch(`./data/${date}.json`, { cache: 'no-store' });
+      const res = await fetch(`./data/${file}.json`, { cache: 'no-store' });
       if (!res.ok) throw new Error(res.status);
       digest = await res.json();
     } catch (e) {
@@ -1606,11 +1664,11 @@
 
     // 全日次JSONを並列取得（一部失敗してもallSettledで続行）
     const settled = await Promise.allSettled(
-      (index.digests || []).map(({ date }) =>
-        fetch(`./data/${date}.json`, { cache: 'no-store' }).then(r => {
+      (index.digests || []).map(meta =>
+        fetch(`./data/${meta.file || meta.date}.json`, { cache: 'no-store' }).then(r => {
           if (!r.ok) throw new Error(r.status);
           return r.json();
-        }).then(d => ({ date, digest: d }))
+        }).then(d => ({ date: meta.date, digest: d }))
       )
     );
 
