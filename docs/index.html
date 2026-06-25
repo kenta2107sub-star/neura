@@ -968,7 +968,7 @@
     }
     .source-row .src-type { font-size: 10px; color: var(--sub); border: 1px solid var(--border-mid); padding: 2px 6px; width: 84px; text-align: center; flex-shrink: 0; box-sizing: border-box; }
     .src-url--err { border-color: var(--error) !important; }
-    .run-status { font-size: 11px; margin-bottom: 10px; }
+    .run-status { font-size: 11px; margin-bottom: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 4px; border: 1px solid transparent; }
     .run-status a { color: inherit; text-decoration: underline; }
     .source-row .src-del {
       background: none; border: 1px solid var(--border-mid); color: var(--sub);
@@ -2014,12 +2014,18 @@
       const ts = `${jst.getUTCFullYear()}-${String(jst.getUTCMonth()+1).padStart(2,'0')}-${String(jst.getUTCDate()).padStart(2,'0')} ${String(jst.getUTCHours()).padStart(2,'0')}:${String(jst.getUTCMinutes()).padStart(2,'0')} JST`;
       if (run.conclusion === 'success') {
         el.style.color = 'var(--accent)';
+        el.style.background = 'rgba(0,255,65,0.07)';
+        el.style.borderColor = 'rgba(0,255,65,0.25)';
         el.textContent = `✅ 最終実行: ${ts} 成功`;
       } else if (run.conclusion === 'failure' || run.conclusion === 'timed_out') {
         el.style.color = 'var(--error)';
+        el.style.background = 'rgba(255,68,68,0.07)';
+        el.style.borderColor = 'rgba(255,68,68,0.25)';
         el.innerHTML = `❌ 最終実行: ${ts} 失敗 <a href="${run.html_url}" target="_blank" rel="noopener">[Actionsで確認 →]</a>`;
       } else if (run.status === 'in_progress') {
         el.style.color = 'var(--sub)';
+        el.style.background = 'rgba(85,85,85,0.1)';
+        el.style.borderColor = 'rgba(85,85,85,0.25)';
         el.textContent = `🔄 実行中... (${ts} 開始)`;
       } else {
         el.style.display = 'none';
