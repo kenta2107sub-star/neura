@@ -106,6 +106,18 @@ def main() -> None:
         print("[ERROR] Failed to parse Gemini response: not a JSON array")
         sys.exit(1)
 
+    # Gemini が同じ URL を重複して返すケースを除去
+    seen_urls: set[str] = set()
+    deduped: list[Article] = []
+    for r in result:
+        key = normalize_url(r.get("url", ""))
+        if key and key not in seen_urls:
+            seen_urls.add(key)
+            deduped.append(r)
+    if len(deduped) < len(result):
+        print(f"[WARN]  summarize: Gemini重複 {len(result) - len(deduped)}件を除去")
+    result = deduped
+
     # FR-06：無効カテゴリ（genres=false）を除外してから重要度上位を選定する
     result_sorted = select_articles(result, config["genres"])
     if not result_sorted:

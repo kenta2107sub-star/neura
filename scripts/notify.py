@@ -39,7 +39,7 @@ def load_json(path: str):
 
 def build_discord_payload(articles: list[Article], date: str) -> dict:
     fields = []
-    for art in articles:
+    for i, art in enumerate(articles):
         emoji = CATEGORY_EMOJI.get(art.get("category", ""), "📄")
         source = SOURCE_LABEL.get(art.get("source", ""), art.get("source", ""))
         fields.append(
@@ -49,6 +49,8 @@ def build_discord_payload(articles: list[Article], date: str) -> dict:
                 "inline": False,
             }
         )
+        if i < len(articles) - 1:
+            fields.append({"name": "​", "value": "\n​", "inline": False})
 
     return {
         "embeds": [
