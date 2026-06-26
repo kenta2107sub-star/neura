@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Neura — AI Daily Digest</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -715,9 +718,7 @@
       position: fixed;
       inset: 0;
       z-index: 900;
-      background: rgba(0,0,0,0.72);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
+      background: rgba(0,0,0,0.88);
       align-items: flex-start;
       justify-content: center;
       padding: 48px 16px 32px;
@@ -745,12 +746,12 @@
       flex-shrink: 0;
     }
     .trans-modal-title {
-      font-size: 20px;
+      font-size: 25px;
       font-weight: 700;
       color: var(--text-bright);
-      font-family: var(--font-jp);
-      letter-spacing: 0.01em;
-      line-height: 1.4;
+      font-family: 'Space Grotesk', var(--font-jp);
+      letter-spacing: -0.01em;
+      line-height: 1.35;
     }
     .trans-modal-close {
       font-family: var(--font-mono);
@@ -777,14 +778,23 @@
     }
     /* 翻訳パネルと同じ本文スタイルをモーダル内にも適用 */
     .trans-modal-body h2 {
-      font-size: 16px; font-weight: 700; color: var(--text-bright);
-      margin: 22px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
-      font-family: var(--font-jp);
+      font-size: 17px; font-weight: 700; color: var(--accent);
+      margin: 28px 0 12px; padding: 6px 0 6px 12px;
+      border-left: 3px solid var(--accent);
+      font-family: 'Space Grotesk', var(--font-jp);
+      letter-spacing: -0.01em;
     }
     .trans-modal-body > h2:first-child { margin-top: 0; }
     .trans-modal-body h3 {
-      font-size: 14px; font-weight: 700; color: var(--text);
-      margin: 20px 0 8px; letter-spacing: 0.03em; font-family: var(--font-jp);
+      font-size: 13px; font-weight: 700; color: var(--sub);
+      margin: 22px 0 8px; letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-family: 'Space Grotesk', var(--font-mono);
+    }
+    .trans-modal-body h4 {
+      font-size: 13px; font-weight: 500; color: var(--text);
+      margin: 16px 0 6px; font-family: 'Space Grotesk', var(--font-jp);
+      letter-spacing: 0.02em;
     }
     .trans-modal-body p { margin: 0 0 15px; }
     .trans-modal-body p:last-child { margin-bottom: 0; }
