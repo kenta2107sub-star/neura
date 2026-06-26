@@ -353,7 +353,7 @@ async def main():
     })
 
     # flatten: リストのみ展開する（Exception オブジェクトはスキップする）
-    # 3. フラット化・AIキーワードフィルタ（config.keywords使用）・重複排除・ソース別ソート・上位30件
+    # 3. フラット化・AIキーワードフィルタ（config.keywords使用）・重複排除・ソース別ソート・上位20件
     articles = filter_and_rank(flatten(results), config["keywords"])
 
     # 4. 各記事URLから本文テキストを取得（trafilatura）
@@ -426,7 +426,7 @@ async def main():
 ```python
 def filter_and_rank(articles: list[CollectedArticle], keywords: dict) -> list[CollectedArticle]:
     """
-    フィルタ・重複排除・ソートを行い、上位30件（スコア系20件・日付系10件）を返す。
+    フィルタ・重複排除・ソートを行い、上位20件（スコア系14件・日付系6件）を返す。
     スコア系（HN/HatenaBookmark）とdate系（Reddit/RSS/Zenn）は別々にソートして結合する。
     RedditはRSS化でスコアを持たないため date系に含める。
     score=0 の記事が単純スコアソートで沈まないようにするため分離する。
@@ -457,8 +457,8 @@ def filter_and_rank(articles: list[CollectedArticle], keywords: dict) -> list[Co
         key=lambda a: a["published_at"], reverse=True
     )
 
-    # 5. スコア系最大20件・日付系最大10件を結合（計最大30件）
-    return score_based[:20] + date_based[:10]
+    # 5. スコア系最大14件・日付系最大6件を結合（計最大20件）
+    return score_based[:14] + date_based[:6]
 ```
 
 #### AIキーワードフィルタ定義
@@ -510,39 +510,45 @@ def matches_ai_keyword(title: str, source: str, keywords: dict) -> bool:
 ### 2-4. `scripts/summarize.py`（FR-02）
 
 #### 役割
-`/tmp/neura_collected.json` を読み込み、Gemini Flash APIで要約・全文翻訳・カテゴリ・重要度を生成し、`/tmp/neura_summarized.json` に保存する。
+`/tmp/neura_collected.json` を読み込み、Gemini Flash API を**2段階**で呼び出して要約・全文翻訳・カテゴリ・重要度を生成し、`/tmp/neura_summarized.json` に保存する。
+
+#### 定数
+
+| 定数 | 値 | 用途 |
+|---|---|---|
+| `BODY_MAX_CHARS_SELECT` | 700 | Stage 1 選定用の本文上限文字数 |
+| `BODY_MAX_CHARS_TRANSLATE` | 3000 | Stage 2 翻訳用の本文上限文字数 |
+| `SELECT_MAX` | 10 | Stage 1 で選ぶ件数の上限 |
 
 #### 処理フロー
 
 ```python
-from config_loader import load_config
-from datetime import datetime, timezone, timedelta
-
-JST = timezone(timedelta(hours=9))
-
-def get_current_slot(notify_schedules: list) -> dict:
-    """現在の JST 時刻に対応するスロットを返す。一致しなければ最初の有効スロットを返す。"""
-    current_hour = datetime.now(JST).hour
-    for slot in notify_schedules:
-        if slot.get("enabled") and slot.get("hour") == current_hour:
-            return slot
-    for slot in notify_schedules:
-        if slot.get("enabled"):
-            return slot
-    return {}
-
 def main():
-    config = load_config()                       # FR-06：設定を読み込む
+    config = load_config()
     articles = load_json("/tmp/neura_collected.json")
-
-    prompt = build_prompt(articles, config["gemini_prompt"])
-
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-    # Gemini API 呼び出し（最大3回リトライ・30秒間隔）
-    max_retries = 3
-    retry_wait = 30
-    for attempt in range(1, max_retries + 1):
+    # ── Stage 1: タイトル＋冒頭700文字で選定 ─────────────────────────
+    # 入力: 最大20件 × 700文字 ≒ 14,000文字（旧: 30件 × 3,000文字 ≒ 90,000文字）
+    sel_text = _call_gemini(client, build_selection_prompt(articles), types)
+    selected_urls = json.loads(sel_text)  # ["https://...", ...]
+    selected = [a for a in articles if normalize_url(a["url"]) in url_set]
+    # パース失敗・0件時は全件をフォールバック
+
+    # ── Stage 2: 選定記事のみ翻訳・要約 ──────────────────────────────
+    text = _call_gemini(client, build_prompt(selected, config["gemini_prompt"]), types)
+    result = json.loads(text)  # [{url, title_ja, summary_ja, translation_ja, category, importance}, ...]
+
+    # URL重複除去 → ジャンルフィルタ → 重要度降順で slot_max 件選定
+    # → source/published_at を元記事から復元 → /tmp/neura_summarized.json に保存
+```
+
+#### `_call_gemini` ヘルパー（リトライ共通化）
+
+```python
+def _call_gemini(client, prompt: str, types) -> str:
+    """最大3回リトライ・30秒間隔。全失敗時は sys.exit(1)。"""
+    for attempt in range(1, 4):
         try:
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
@@ -552,55 +558,32 @@ def main():
                     temperature=0.3,
                 ),
             )
-            break
+            return response.text
         except Exception as e:
-            print(f"[WARN]  summarize: Gemini API attempt {attempt}/{max_retries} failed: {e}")
-            if attempt < max_retries:
-                time.sleep(retry_wait)
-    else:
-        print("[ERROR] Gemini API failed after all retries")
-        sys.exit(1)
-
-    result = json.loads(response.text)  # パース失敗→例外→exit(1)
-
-    # Gemini が同じ URL を重複返却したケースを URL 正規化後に除去する
-    seen_urls: set[str] = set()
-    deduped: list = []
-    for r in result:
-        key = normalize_url(r.get("url", ""))
-        if key and key not in seen_urls:
-            seen_urls.add(key)
-            deduped.append(r)
-    result = deduped
-
-    # 実行時刻に対応するスロット設定を取得してジャンルフィルタ・件数上限を適用する
-    slot = get_current_slot(config.get("notify_schedules", []))
-    slot_genres = slot.get("genres") or {"ニュース": True, "研究": True, "活用事例": True, "ツール": True}
-    slot_max = max(1, min(10, int(slot.get("max_articles", 10))))
-    print(f"[INFO]  summarize: スロット hour={slot.get('hour','?')} genres={list(slot_genres)} max={slot_max}")
-
-    # FR-06：無効カテゴリ(genres=false)を除外してから重要度上位を選定する
-    enabled = {g for g, on in slot_genres.items() if on}
-    result = [r for r in result if r.get("category") in enabled]
-    if not result:
-        print("[WARN]  summarize: 有効カテゴリの記事が0件（genres設定を確認）")
-    result_sorted = sorted(result, key=lambda x: x.get("importance", 0), reverse=True)[:slot_max]
-
-    # 元記事の source / published_at を URL 照合で復元する
-    url_map = {normalize_url(a["url"]): a for a in articles}
-    for item in result_sorted:
-        original = url_map.get(normalize_url(item.get("url", "")), {})
-        if not original:
-            print(f"[WARN]  summarize: URL照合失敗 → {item.get('url')}")
-        item["source"] = original.get("source", "")
-        item["published_at"] = original.get("published_at", "")
-
-    save_json("/tmp/neura_summarized.json", result_sorted)
+            if attempt < 3:
+                time.sleep(30)
+    sys.exit(1)
 ```
 
-#### Geminiへのプロンプト（完全版）
+#### Stage 1 選定プロンプト（`SELECTION_PROMPT`）
 
-プロンプト本文は config（`config.gemini_prompt`）のテンプレートを使い、`{articles}` を記事一覧テキストに置換する。テンプレートのデフォルト全文は requirements.md FR-06 / 下記参照。
+```
+以下のAI関連記事から、AIを学び始めた一般人が「面白い・試してみたい」と感じる記事を最大{n}件選んでください。
+選んだ記事のURLだけをJSON配列（文字列のリスト）で返してください。
+
+記事一覧:
+[1] タイトル: ...
+    URL: ...
+    ソース: ...
+    本文: ...（冒頭700文字）
+...
+
+URLのJSON配列のみを返してください。説明文は不要です。
+```
+
+#### Stage 2 翻訳プロンプト（`config.gemini_prompt` テンプレート）
+
+プロンプト本文は config（`config.gemini_prompt`）のテンプレートを使い、`{articles}` を記事一覧テキストに置換する。
 
 ```python
 def build_prompt(articles: list[dict], template: str) -> str:
