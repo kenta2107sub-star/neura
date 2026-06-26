@@ -710,8 +710,16 @@
 
     /* ── Translation Modal ── */
     @keyframes modal-fade-in {
-      from { opacity: 0; transform: translateY(12px); }
+      from { opacity: 0; transform: translateY(16px); }
       to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes modal-fade-out {
+      from { opacity: 1; transform: translateY(0); }
+      to   { opacity: 0; transform: translateY(16px); }
+    }
+    @keyframes modal-overlay-out {
+      from { background: rgba(0,0,0,0.88); }
+      to   { background: rgba(0,0,0,0); }
     }
     .trans-modal {
       display: none;
@@ -725,16 +733,20 @@
       overflow: hidden;
     }
     .trans-modal.open { display: flex; }
+    .trans-modal.closing { animation: modal-overlay-out 0.2s ease both; }
     .trans-modal-box {
       background: #0D0D0D;
       border: 1px solid var(--border-mid);
       border-top: 2px solid var(--accent);
       width: 100%;
-      max-width: 760px;
+      max-width: 900px;
       max-height: calc(100vh - 80px);
       display: flex;
       flex-direction: column;
       animation: modal-fade-in 0.22s ease both;
+    }
+    .trans-modal.closing .trans-modal-box {
+      animation: modal-fade-out 0.2s ease both;
     }
     .trans-modal-header {
       display: flex;
@@ -786,7 +798,7 @@
     }
     .trans-modal-body > h2:first-child { margin-top: 0; }
     .trans-modal-body h3 {
-      font-size: 13px; font-weight: 700; color: var(--sub);
+      font-size: 15px; font-weight: 700; color: var(--sub);
       margin: 22px 0 8px; letter-spacing: 0.08em;
       text-transform: uppercase;
       font-family: 'Space Grotesk', var(--font-mono);
@@ -1488,9 +1500,18 @@
     document.addEventListener('keydown', _modalEscHandler);
   }
   function closeTranslationModal() {
-    document.getElementById('trans-modal').classList.remove('open');
-    document.body.style.overflow = '';
+    const modal = document.getElementById('trans-modal');
+    const box   = modal.querySelector('.trans-modal-box');
     document.removeEventListener('keydown', _modalEscHandler);
+    // アニメーションを確実に再起動するためreflowを挟んでからclosingクラスを付与
+    box.style.animation = 'none';
+    void box.offsetWidth;
+    box.style.animation = '';
+    modal.classList.add('closing');
+    setTimeout(() => {
+      modal.classList.remove('open', 'closing');
+      document.body.style.overflow = '';
+    }, 210);
   }
   function _modalEscHandler(e) { if (e.key === 'Escape') closeTranslationModal(); }
 
