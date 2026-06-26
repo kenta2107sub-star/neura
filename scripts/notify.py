@@ -45,12 +45,10 @@ def build_discord_payload(articles: list[Article], date: str) -> dict:
         fields.append(
             {
                 "name": f"{emoji} {art['title_ja']}",
-                "value": f"{art['summary_ja']}\n[{source}]({art['url']})",
+                "value": f"{art['summary_ja']}\n[{source}]({art['url']})\n​",
                 "inline": False,
             }
         )
-        if i < len(articles) - 1:
-            fields.append({"name": "​", "value": "\n​", "inline": False})
 
     return {
         "embeds": [
