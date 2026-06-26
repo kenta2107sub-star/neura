@@ -356,9 +356,10 @@ async def main():
     # 3. フラット化・AIキーワードフィルタ（config.keywords使用）・重複排除・ソース別ソート・上位20件
     articles = filter_and_rank(flatten(results), config["keywords"])
 
-    # 4. 各記事URLから本文テキストを取得（trafilatura）
-    for article in articles:
-        article["body_text"] = fetch_body_text(article["url"])  # 失敗時はNone
+    # 4. 各記事URLから本文テキストを並列取得（asyncio.to_thread + asyncio.gather）
+    bodies = await asyncio.gather(*[asyncio.to_thread(fetch_body_text, a["url"]) for a in articles])
+    for article, body in zip(articles, bodies):
+        article["body_text"] = body  # 失敗時はNone
 
     # 5. /tmp/neura_collected.json に書き出し
     save_json("/tmp/neura_collected.json", articles)

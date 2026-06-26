@@ -68,10 +68,18 @@ class Article(TypedDict):
     published_at: str
 
 
+class DigestTitle(TypedDict):
+    """index.json の titles 要素（記事タイトル略称）。"""
+
+    t: str  # title_ja（短縮）
+    c: str  # category
+
+
 class DailyDigest(TypedDict):
     """日次データ（docs/data/{YYYY-MM-DD}.json）。"""
 
     date: str  # YYYY-MM-DD
+    time: str  # HH:00 JST（例: "13:00"）
     generated_at: str  # ISO 8601 UTC
     articles: list[Article]
 
@@ -80,8 +88,11 @@ class DigestMeta(TypedDict):
     """日付ごとのメタ情報（index.json の digests 要素）。"""
 
     date: str  # YYYY-MM-DD
+    time: str  # HH:00 JST（例: "13:00"）
+    file: str  # ファイルキー（例: "2026-06-26_13"）
     count: int  # その日の記事件数
     categories: dict[str, int]  # カテゴリ別件数（存在するカテゴリのみ）
+    titles: list[DigestTitle]  # 先頭10件のタイトル略称（フロント検索用）
 
 
 class DigestIndex(TypedDict):
