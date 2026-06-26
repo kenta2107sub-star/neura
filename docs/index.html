@@ -1230,7 +1230,7 @@
         <div id="cfg-schedules" class="schedule-list"></div>
         <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）</p>
         <p class="settings-fielderr" id="cfg-sched-err" style="display:none;margin-top:4px;">少なくとも1つのスケジュールを有効にしてください。</p>
-        <p style="font-size:11px;color:var(--sub);margin-top:10px;line-height:1.7;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">⚠️ <strong style="color:var(--sub);">スケジュール変更の注意</strong><br>新しい時刻を追加・変更しても、GitHub Actions の都合で当日は実行されないことがあります。通常は翌日から有効になります。また、GitHub の負荷状況によって実行時刻が数時間遅れる場合があります。</p>
+        <p style="font-size:11px;color:var(--sub);margin-top:10px;line-height:1.7;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">⚠️ <strong style="color:var(--sub);">スケジュール変更の注意</strong><br>新しいスケジュールを登録してから <strong style="color:var(--sub);">最初の実行まで最長24〜48時間かかる</strong> ことがあります（GitHub Actions の仕様）。また、GitHub の負荷状況によって設定時刻より数時間遅れて実行される場合があります。いずれも正常な動作です。</p>
       </div>
 
       <!-- キーワード -->
