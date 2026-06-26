@@ -680,6 +680,7 @@
     }
     .translation-panel li { margin-bottom: 5px; }
     .translation-panel strong { color: var(--text-bright); font-weight: 700; }
+    .translation-panel hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
     .translation-panel code {
       font-family: var(--font-mono);
       font-size: 13px;
@@ -813,6 +814,7 @@
     .trans-modal-body ul, .trans-modal-body ol { margin: 0 0 15px 18px; }
     .trans-modal-body li { margin-bottom: 5px; }
     .trans-modal-body strong { color: var(--text-bright); font-weight: 700; }
+    .trans-modal-body hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
     .trans-modal-body code {
       font-family: var(--font-mono); font-size: 13px;
       background: var(--surface2); padding: 1px 5px; color: var(--accent);
@@ -1400,14 +1402,16 @@
     });
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/^---$/gm, '<hr>');
     s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    s = s.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
     s = s.replace(/^- (.+)$/gm, '<li>$1</li>');
     s = s.replace(/(<li>[\s\S]*?<\/li>)(\n(?!<li>)|$)/g, '<ul>$1</ul>$2');
     const parts = s.split(/\n{2,}/);
     s = parts.map(p => {
       if (/^\x00CODE\d+\x00$/.test(p.trim())) return p.trim();
-      if (/^<(h[23]|ul|ol|li|pre)/.test(p.trim())) return p.trim();
+      if (/^<(h[234]|ul|ol|li|pre|hr)/.test(p.trim())) return p.trim();
       const inner = p.trim().replace(/\n/g, '<br>');
       return inner ? `<p>${inner}</p>` : '';
     }).join('\n');
