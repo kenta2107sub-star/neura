@@ -18,7 +18,7 @@
 | 非同期HTTP | aiohttp | 3.9 | asyncioと組み合わせて全ソースへの並列リクエストを実現。requests と異なり async/await で書けるため並列収集のコードが簡潔 |
 | RSS解析 | feedparser | 6.0 | RSSおよびAtomフィードのパースに特化。エンコーディング・日付の正規化を自動処理するため自前パースが不要 |
 | 本文抽出 | trafilatura | 1.12.2 | 記事URLから本文テキストを抽出するライブラリ。広告・ナビゲーション等のノイズを除去し、コードブロックを含む本文だけを返す。ペイウォール・403の場合はNoneを返す（1.8系は依存衝突のため1.12系を採用） |
-| AI要約・翻訳 | google-generativeai | 0.7 | Gemini Flash（gemini-1.5-flash）の無料枠（1500 req/日）を使用。日本語要約・全文翻訳・カテゴリ分類・重要度スコアリングを1リクエストで処理 |
+| AI要約・翻訳 | google-genai | 1.x | Gemini Flash（gemini-2.5-flash）の無料枠（1500 req/日）を使用。Stage 1（選定）・Stage 2（翻訳）の2段階呼び出しで要約・全文翻訳・カテゴリ分類・重要度スコアリングを処理 |
 | Discord通知 | requests | 2.31 | Discord Webhook へのPOSTのみ。asyncio不要の単純なHTTPリクエストなのでrequestsで十分 |
 | スケジューラ | GitHub Actions | - | cron `0 4 * * *`（毎日04:00 UTC = 13:00 JST）。無料枠2000分/月で1回5分以内の実行なら余裕で収まる |
 | フロントエンド | バニラHTML/CSS/JS | - | フレームワーク不要の静的1ファイル構成。GitHub Pagesで即時配信可能。ビルドステップが不要でメンテが容易 |
@@ -55,11 +55,14 @@
         └──→ はてなブックマーク hotentry RSS（feedparser・.json は302のためRSS）
               https://b.hatena.ne.jp/hotentry/it.rss
                         |
-                        ↓ 全ソース結果をマージ・AIキーワードフィルタ・重複排除・上位30件
-[summarize.py：AI要約・分類]
+                        ↓ 全ソース結果をマージ・AIキーワードフィルタ・重複排除・上位20件
+[summarize.py：AI要約・分類（2段階）]
         |
-        └──→ Gemini Flash API（google-generativeai）
-              gemini-1.5-flash / 1リクエストで要約・カテゴリ・重要度を生成
+        ├─ Stage 1 ─→ Gemini Flash API（google-genai）
+        │             gemini-2.5-flash / タイトル＋冒頭700文字で記事選定（URLリスト返却）
+        │
+        └─ Stage 2 ─→ Gemini Flash API（google-genai）
+                      gemini-2.5-flash / 選定記事のみ翻訳・要約・カテゴリ・重要度を生成
                         |
                         ↓ 最終記事オブジェクト（スロットフィルタ後 1〜10件）
         ┌───────────────┴───────────────┐
@@ -85,7 +88,7 @@ Discord Webhook POST              docs/data/{YYYY-MM-DD}.json 生成
 | RSS取得 | `feedparser.parse(url)` | 不要 |
 | Zenn RSS取得 | `feedparser.parse(url)` | 不要 |
 | はてブ取得 | `GET https://b.hatena.ne.jp/hotentry/it.rss`（feedparser・hatena:bookmarkcount） | 不要 |
-| Gemini API呼び出し | `genai.GenerativeModel('gemini-1.5-flash').generate_content()` | `GEMINI_API_KEY`（環境変数） |
+| Gemini API呼び出し | `genai.Client(api_key=...).models.generate_content(model='gemini-2.5-flash', ...)` | `GEMINI_API_KEY`（環境変数） |
 | Discord通知 | `requests.post(DISCORD_WEBHOOK_URL, json=payload)` | `DISCORD_WEBHOOK_URL`（環境変数） |
 | GitHubコミット | `git add / commit / push`（GitHub Actions内） | `GITHUB_TOKEN`（Actions自動提供） |
 | 設定読み込み（FR-06） | `config_loader.load_config()`（ローカルの `config/config.json` を読む） | 不要（チェックアウト済みファイル） |
@@ -127,14 +130,14 @@ neura/                                    ← プロジェクトルート
 | `config/config.json` | FR-06の収集設定。`genres`・`sources`・`keywords`・`gemini_prompt` を保持。リポジトリにデフォルト値を同梱する。設定画面（`docs/index.html`）が GitHub Contents API 経由で直接更新する |
 | `scripts/schemas.py` | Python TypedDictによる共通型定義。`AppConfig`・`CollectedArticle`・`Article`・`DailyDigest`・`DigestIndex` を定義し、全スクリプトからimportして使用する。※ファイル名を `types.py` にすると標準ライブラリ `types` を `sys.path[0]` でシャドーイングし依存ライブラリが壊れるため `schemas.py` とする |
 | `scripts/config_loader.py` | `config/config.json` を読み込み `AppConfig` を返す。ファイル不在・JSONパース失敗時はデフォルト値を返す（`[WARN]` ログ）。`collect.py`・`summarize.py` から使用する |
-| `scripts/collect.py` | `config_loader` で設定を読み、`sources`（有効なもののみ・`type`でパーサ振分け）・`keywords` に従って全ソースへ並列HTTPリクエスト・AIキーワードフィルタ・重複URL排除・上位30件の選定・`trafilatura` による本文テキスト取得。結果を `/tmp/neura_collected.json` に書き出して次スクリプトに渡す |
-| `scripts/summarize.py` | `collect.py` の出力を受け取り、`config.gemini_prompt` を使って Gemini Flash APIに1リクエストで要約・全文翻訳（`translation_ja`）・カテゴリ・重要度を生成させる。`config.genres` で無効なカテゴリを除外してから重要度上位を選定する。JSONパース失敗時は即終了 |
+| `scripts/collect.py` | `config_loader` で設定を読み、`sources`（有効なもののみ・`type`でパーサ振分け）・`keywords` に従って全ソースへ並列HTTPリクエスト・AIキーワードフィルタ・重複URL排除・上位20件の選定（スコア系14件＋日付系6件）・`trafilatura` による本文テキスト取得。結果を `/tmp/neura_collected.json` に書き出して次スクリプトに渡す |
+| `scripts/summarize.py` | `collect.py` の出力を受け取り Gemini Flash API を2段階で呼び出す。Stage 1: 冒頭700文字で最大10件を選定（URLリスト返却）。Stage 2: 選定記事のみ `config.gemini_prompt` で翻訳・要約・カテゴリ・重要度を生成。スロット設定のジャンルフィルタ・件数上限を適用して `/tmp/neura_summarized.json` に保存 |
 | `scripts/notify.py` | `summarize.py` の出力をDiscord Embed形式に変換してWebhook POSTする。エラー時はログ出力のみ |
 | `scripts/archive.py` | `summarize.py` の出力を `docs/data/{date}.json` に書き出し・`index.json` を更新・`git commit & push` する |
 | `docs/index.html` | GitHub Pagesで配信する静的サイト本体。SCR-01（月別折りたたみ一覧）・SCR-02（日次詳細・全文翻訳展開）・SCR-03（キーワード検索）をバニラJSで実装。markdownレンダリング・シンタックスハイライトもインライン実装（外部CDN不使用） |
 | `docs/data/index.json` | 存在する日次JSONの日付を降順配列で保持。`archive.py` が毎回更新する。100件超は古い順に削除 |
 | `docs/data/{YYYY-MM-DD}.json` | 日次記事データ。`archive.py` が生成。GitHub Pagesから直接fetchされる |
-| `requirements.txt` | `aiohttp`・`feedparser`・`trafilatura`・`google-generativeai`・`requests` のバージョン固定 |
+| `requirements.txt` | `aiohttp`・`feedparser`・`trafilatura`・`google-genai`・`requests` のバージョン固定 |
 | `.env.example` | 環境変数テンプレート。実際の値は入れずにGitにコミットする |
 
 ---

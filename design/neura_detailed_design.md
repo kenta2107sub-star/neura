@@ -142,8 +142,8 @@
   },
   "gemini_prompt": "以下のAI関連記事から...\n\n記事一覧:\n{articles}",
   "notify_schedules": [
-    { "hour": 13, "enabled": true,  "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} },
-    { "hour": 20, "enabled": false, "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} },
+    { "hour": 13, "enabled": true,  "max_articles": 5, "genres": {"ニュース": false, "研究": false, "活用事例": true, "ツール": true} },
+    { "hour": 19, "enabled": true,  "max_articles": 5, "genres": {"ニュース": true,  "研究": false, "活用事例": false, "ツール": false} },
     { "hour":  8, "enabled": false, "max_articles": 10, "genres": {"ニュース": true, "研究": true, "活用事例": true, "ツール": true} }
   ]
 }
@@ -256,7 +256,7 @@ DEFAULT_CONFIG: AppConfig = {
     "gemini_prompt": "（FR-02のデフォルトプロンプト全文。{articles} を含む）",
     "notify_schedules": [
         {"hour": 13, "enabled": True,  "max_articles": DEFAULT_MAX_ARTICLES, "genres": DEFAULT_GENRES},
-        {"hour": 20, "enabled": False, "max_articles": DEFAULT_MAX_ARTICLES, "genres": DEFAULT_GENRES},
+        {"hour": 19, "enabled": False, "max_articles": DEFAULT_MAX_ARTICLES, "genres": DEFAULT_GENRES},
         {"hour":  8, "enabled": False, "max_articles": DEFAULT_MAX_ARTICLES, "genres": DEFAULT_GENRES},
     ],
 }
@@ -274,7 +274,7 @@ def load_config() -> AppConfig:
         h = cfg.pop("run_hour_jst")
         cfg["notify_schedules"] = [
             {"hour": h, "enabled": True},
-            {"hour": 20, "enabled": False},
+            {"hour": 19, "enabled": False},
             {"hour":  8, "enabled": False},
         ]
 
@@ -681,15 +681,13 @@ def build_discord_payload(articles: list[dict], date: str) -> dict:
     }
 
     fields = []
-    for i, art in enumerate(articles):
+    for art in articles:
         emoji = CATEGORY_EMOJI.get(art["category"], "📄")
         source = SOURCE_LABEL.get(art["source"], art["source"])
-        # 2件目以降の前にセパレーター行を挿入して視認性を高める
-        if i > 0:
-            fields.append({"name": "​", "value": "\n​", "inline": False})
+        # 各記事の value 末尾に \n​（ゼロ幅スペース）を付与して記事間の余白を確保
         fields.append({
             "name": f"{emoji} {art['title_ja']}",
-            "value": f"{art['summary_ja']}\n[{source}]({art['url']})",
+            "value": f"{art['summary_ja']}\n[{source}]({art['url']})\n​",
             "inline": False
         })
 
