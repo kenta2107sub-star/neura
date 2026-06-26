@@ -190,7 +190,7 @@ def matches_ai_keyword(title: str, source: str, keywords: Keywords) -> bool:
 
 
 def filter_and_rank(articles: list[CollectedArticle], keywords: Keywords) -> list[CollectedArticle]:
-    """フィルタ・重複排除・ソートを行い上位30件（スコア系20件・日付系10件）を返す。"""
+    """フィルタ・重複排除・ソートを行い上位20件（スコア系14件・日付系6件）を返す。"""
     # 1. URLバリデーション（NF-03）
     articles = [a for a in articles if a["url"].startswith(("http://", "https://"))]
 
@@ -220,8 +220,8 @@ def filter_and_rank(articles: list[CollectedArticle], keywords: Keywords) -> lis
         reverse=True,
     )
 
-    # 5. スコア系最大20件・日付系最大10件を結合（計最大30件）
-    return score_based[:20] + date_based[:10]
+    # 5. スコア系最大14件・日付系最大6件を結合（計最大20件）
+    return score_based[:14] + date_based[:6]
 
 
 # ── ディスパッチ・メイン ──────────────────────────────────────

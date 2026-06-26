@@ -1,7 +1,8 @@
 """FR-02：AI要約・分類。
 
-``/tmp/neura_collected.json`` を読み込み、Gemini Flash API で要約・全文翻訳・カテゴリ・
-重要度を生成する。config の genres で無効カテゴリを除外し、重要度上位を選定して
+``/tmp/neura_collected.json`` を読み込み、Gemini Flash API を2段階で呼び出す。
+Stage 1: タイトル＋冒頭700文字で記事を選定（URLリストを返す）
+Stage 2: 選定記事の本文フルで翻訳・要約・カテゴリ・重要度を生成し
 ``/tmp/neura_summarized.json`` に書き出す。
 """
 
@@ -20,9 +21,19 @@ INPUT_PATH = "/tmp/neura_collected.json"
 OUTPUT_PATH = "/tmp/neura_summarized.json"
 MODEL_NAME = "gemini-2.5-flash"
 GEMINI_TIMEOUT = 30  # NF-01
-BODY_MAX_CHARS_IN_PROMPT = 3000
+BODY_MAX_CHARS_SELECT = 700      # Stage 1 選定用（タイトル＋冒頭のみ）
+BODY_MAX_CHARS_TRANSLATE = 3000  # Stage 2 翻訳用（フル本文）
+SELECT_MAX = 10                  # Stage 1 で選ぶ件数の上限
 MAX_ARTICLES = 10  # スロット設定が未設定の場合のフォールバック
 JST = timezone(timedelta(hours=9))
+
+SELECTION_PROMPT = (
+    "以下のAI関連記事から、AIを学び始めた一般人が「面白い・試してみたい」と感じる記事を最大{n}件選んでください。\n"
+    "選んだ記事のURLだけをJSON配列（文字列のリスト）で返してください。\n\n"
+    "記事一覧:\n"
+    "{articles}\n\n"
+    "URLのJSON配列のみを返してください。説明文は不要です。"
+)
 
 
 def get_current_slot(notify_schedules: list) -> dict:
@@ -58,10 +69,23 @@ def select_articles(result: list[Article], genres: dict[str, bool], max_articles
     return sorted(filtered, key=lambda x: x.get("importance", 0), reverse=True)[:max_articles]
 
 
+def build_selection_prompt(articles: list[CollectedArticle], n: int = SELECT_MAX) -> str:
+    """Stage 1 用：タイトル＋冒頭文のみで選定プロンプトを構築する。"""
+    articles_text = "\n\n".join(
+        f"[{i + 1}] タイトル: {a['title']}\n"
+        f"    URL: {a['url']}\n"
+        f"    ソース: {a['source']}\n"
+        f"    本文: {a['body_text'][:BODY_MAX_CHARS_SELECT] if a.get('body_text') else '（本文取得不可）'}"
+        for i, a in enumerate(articles)
+    )
+    return SELECTION_PROMPT.format(n=n, articles=articles_text)
+
+
 def build_prompt(articles: list[CollectedArticle], template: str) -> str:
+    """Stage 2 用：フル本文で翻訳・要約プロンプトを構築する。"""
     articles_text = "\n\n".join(
         f"[{i + 1}] タイトル: {a['title']}\nURL: {a['url']}\nソース: {a['source']}\n"
-        f"本文: {a['body_text'][:BODY_MAX_CHARS_IN_PROMPT] if a.get('body_text') else '（本文取得不可）'}"
+        f"本文: {a['body_text'][:BODY_MAX_CHARS_TRANSLATE] if a.get('body_text') else '（本文取得不可）'}"
         for i, a in enumerate(articles)
     )
 
@@ -70,6 +94,29 @@ def build_prompt(articles: list[CollectedArticle], template: str) -> str:
         template = DEFAULT_GEMINI_PROMPT
 
     return template.replace("{articles}", articles_text)
+
+
+def _call_gemini(client, prompt: str, types) -> str:
+    """リトライ付き Gemini 呼び出し。レスポンステキストを返す。失敗時は sys.exit(1)。"""
+    max_retries = 3
+    retry_wait = 30
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.3,
+                ),
+            )
+            return response.text
+        except Exception as e:
+            print(f"[WARN]  summarize: Gemini API attempt {attempt}/{max_retries} failed: {e}")
+            if attempt < max_retries:
+                time.sleep(retry_wait)
+    print("[ERROR] Gemini API failed after all retries")
+    sys.exit(1)
 
 
 def main() -> None:
@@ -83,35 +130,31 @@ def main() -> None:
 
     config = load_config()  # FR-06
     articles: list[CollectedArticle] = load_json(INPUT_PATH)
-
-    prompt = build_prompt(articles, config["gemini_prompt"])
-
     client = genai.Client(api_key=api_key)
 
-    max_retries = 3
-    retry_wait = 30  # seconds
-    response = None
-    for attempt in range(1, max_retries + 1):
-        try:
-            response = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.3,
-                ),
-            )
-            break
-        except Exception as e:
-            print(f"[WARN]  summarize: Gemini API attempt {attempt}/{max_retries} failed: {e}")
-            if attempt < max_retries:
-                time.sleep(retry_wait)
-    if response is None:
-        print("[ERROR] Gemini API failed after all retries")
-        sys.exit(1)
-
+    # ── Stage 1: タイトル＋冒頭文で選定 ──────────────────────────────
+    print(f"[INFO]  summarize: Stage 1 選定（{len(articles)}件 → 最大{SELECT_MAX}件）")
+    sel_text = _call_gemini(client, build_selection_prompt(articles), types)
     try:
-        result = json.loads(response.text)
+        selected_urls: list[str] = json.loads(sel_text)
+        if not isinstance(selected_urls, list):
+            raise ValueError("not a list")
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"[WARN]  summarize: Stage 1 パース失敗 → 全件を Stage 2 へ ({e})")
+        selected_urls = [a["url"] for a in articles]
+
+    url_set = {normalize_url(u) for u in selected_urls if isinstance(u, str)}
+    selected = [a for a in articles if normalize_url(a["url"]) in url_set]
+    if not selected:
+        print("[WARN]  summarize: Stage 1 の選定結果が0件 → 全件を Stage 2 へ")
+        selected = articles
+    print(f"[INFO]  summarize: Stage 1 完了 → {len(selected)}件選定")
+
+    # ── Stage 2: 選定記事を翻訳・要約 ────────────────────────────────
+    print(f"[INFO]  summarize: Stage 2 翻訳・要約（{len(selected)}件）")
+    text = _call_gemini(client, build_prompt(selected, config["gemini_prompt"]), types)
+    try:
+        result = json.loads(text)
     except (json.JSONDecodeError, ValueError) as e:
         print(f"[ERROR] Failed to parse Gemini response: {e}")
         sys.exit(1)
@@ -156,7 +199,7 @@ def main() -> None:
         item["published_at"] = original.get("published_at", "")
 
     save_json(OUTPUT_PATH, result_sorted)
-    print(f"[INFO]  summarize: Gemini → {len(result_sorted)}件選出 → {OUTPUT_PATH}")
+    print(f"[INFO]  summarize: 完了 → {len(result_sorted)}件選出 → {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
