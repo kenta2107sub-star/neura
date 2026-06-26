@@ -721,7 +721,7 @@
       align-items: flex-start;
       justify-content: center;
       padding: 48px 16px 32px;
-      overflow-y: auto;
+      overflow: hidden;
     }
     .trans-modal.open { display: flex; }
     .trans-modal-box {
@@ -730,6 +730,9 @@
       border-top: 2px solid var(--accent);
       width: 100%;
       max-width: 760px;
+      max-height: calc(100vh - 80px);
+      display: flex;
+      flex-direction: column;
       animation: modal-fade-in 0.22s ease both;
     }
     .trans-modal-header {
@@ -739,9 +742,10 @@
       gap: 12px;
       padding: 12px 18px;
       border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
     }
     .trans-modal-title {
-      font-size: 17px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--text-bright);
       font-family: var(--font-jp);
@@ -768,6 +772,8 @@
       letter-spacing: 0.01em;
       color: #C8C8C8;
       overflow-x: hidden;
+      overflow-y: auto;
+      flex: 1;
     }
     /* 翻訳パネルと同じ本文スタイルをモーダル内にも適用 */
     .trans-modal-body h2 {
@@ -1468,7 +1474,7 @@
     document.getElementById('trans-modal-title').textContent = title || '// 全文翻訳';
     modal.classList.add('open');
     document.body.style.overflow = 'hidden';
-    modal.scrollTop = 0;
+    document.getElementById('trans-modal-body').scrollTop = 0;
     document.addEventListener('keydown', _modalEscHandler);
   }
   function closeTranslationModal() {
