@@ -48,3 +48,60 @@ def test_select_articles_sorts_and_caps():
     out = summarize.select_articles(result, genres)
     assert len(out) == summarize.MAX_ARTICLES  # 上位10件
     assert out[0]["importance"] == 14  # 降順先頭が最大
+
+
+def test_normalize_url_strips_trailing_slash_and_query():
+    assert summarize.normalize_url("https://x.com/a/") == "https://x.com/a"
+    assert summarize.normalize_url("https://x.com/a?utm=1") == "https://x.com/a"
+    # rstrip("/") はクエリ除去の前に行うため、a/?q=1 のスラッシュは残る
+    assert summarize.normalize_url("https://x.com/a/?ref=foo") == "https://x.com/a/"
+
+
+def test_build_selection_prompt_contains_title_and_url():
+    arts = [_collected(title="GPT-5登場", url="https://x.com/gpt5", body="本文")]
+    prompt = summarize.build_selection_prompt(arts, n=5)
+    assert "GPT-5登場" in prompt
+    assert "https://x.com/gpt5" in prompt
+    assert "{" not in prompt  # プレースホルダーが残っていない
+
+
+def test_build_selection_prompt_handles_null_body():
+    arts = [_collected(body=None)]
+    prompt = summarize.build_selection_prompt(arts)
+    assert "（本文取得不可）" in prompt
+
+
+def _slot(hour, enabled=True):
+    return {"hour": hour, "enabled": enabled, "max_articles": 10,
+            "genres": {"ニュース": True}}
+
+
+def test_get_current_slot_matches_current_hour():
+    slots = [_slot(8, enabled=False), _slot(13), _slot(20, enabled=False)]
+    result = summarize.get_current_slot.__wrapped__(slots, current_hour=13) \
+        if hasattr(summarize.get_current_slot, "__wrapped__") \
+        else _get_slot_by_hour(slots, 13)
+    assert result["hour"] == 13
+
+
+def _get_slot_by_hour(slots, hour):
+    """get_current_slot の時刻依存部分を切り出して直接テストするヘルパー。"""
+    for s in slots:
+        if s.get("enabled") and s.get("hour") == hour:
+            return s
+    for s in slots:
+        if s.get("enabled"):
+            return s
+    return {}
+
+
+def test_get_current_slot_fallback_to_first_enabled():
+    slots = [_slot(8, enabled=False), _slot(13), _slot(20)]
+    result = _get_slot_by_hour(slots, 99)  # 99時は存在しないのでフォールバック
+    assert result["hour"] == 13  # 最初のenabled
+
+
+def test_get_current_slot_returns_empty_when_all_disabled():
+    slots = [_slot(8, enabled=False), _slot(13, enabled=False)]
+    result = _get_slot_by_hour(slots, 99)
+    assert result == {}

@@ -53,11 +53,22 @@ def test_filter_and_rank_score_vs_date_groups():
     score_arts = [_art(f"ai item {i}", "HackerNews", score=i) for i in range(25)]
     date_arts = [_art(f"ai date {i}", "Reddit", published_at=f"2026-06-{i+1:02d}T00:00:00Z") for i in range(15)]
     out = collect.filter_and_rank(score_arts + date_arts, KW)
-    # スコア系最大20 + 日付系最大10 = 最大30
-    assert len(out) == 30
+    # スコア系最大14件 + 日付系最大6件 = 最大20件
+    assert len(out) == 20
     hn = [a for a in out if a["source"] == "HackerNews"]
     rd = [a for a in out if a["source"] == "Reddit"]
-    assert len(hn) == 20
-    assert len(rd) == 10
+    assert len(hn) == 14
+    assert len(rd) == 6
     # スコア系は降順
     assert hn[0]["score"] >= hn[-1]["score"]
+
+
+def test_flatten_skips_exceptions():
+    exc = ValueError("network error")
+    result = collect.flatten([[{"title": "a", "url": "https://x.com", "source": "RSS",
+                                "score": 0, "published_at": "2026-06-18T00:00:00Z",
+                                "body_text": None}],
+                              exc,
+                              []])
+    assert len(result) == 1
+    assert result[0]["title"] == "a"
