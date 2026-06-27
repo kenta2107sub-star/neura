@@ -1,5 +1,7 @@
 """FR-02：summarize のプロンプト生成・ジャンル絞込みの単体テスト。"""
 
+from unittest.mock import patch
+
 import config_loader
 import summarize
 
@@ -105,3 +107,32 @@ def test_get_current_slot_returns_empty_when_all_disabled():
     slots = [_slot(8, enabled=False), _slot(13, enabled=False)]
     result = _get_slot_by_hour(slots, 99)
     assert result == {}
+
+
+def test_call_gemini_json_retries_on_parse_failure():
+    """JSONパース失敗時にリトライし、2回目で成功すること。"""
+    responses = iter(["not valid json", '[{"url": "u1", "category": "ニュース"}]'])
+    with patch("summarize._call_gemini", side_effect=lambda *a, **kw: next(responses)), \
+         patch("time.sleep"):
+        result = summarize._call_gemini_json(None, "prompt", None, max_retries=3)
+    assert isinstance(result, list)
+    assert result[0]["url"] == "u1"
+
+
+def test_call_gemini_json_retries_on_non_list():
+    """listでないJSONが返ってきた場合もリトライすること。"""
+    responses = iter(['{"key": "val"}', '[{"url": "u2"}]'])
+    with patch("summarize._call_gemini", side_effect=lambda *a, **kw: next(responses)), \
+         patch("time.sleep"):
+        result = summarize._call_gemini_json(None, "prompt", None, max_retries=3)
+    assert result[0]["url"] == "u2"
+
+
+def test_call_gemini_json_exits_after_max_retries():
+    """max_retries 回連続でパース失敗した場合は sys.exit(1) すること。"""
+    import pytest
+    with patch("summarize._call_gemini", return_value="bad json"), \
+         patch("time.sleep"):
+        with pytest.raises(SystemExit) as exc:
+            summarize._call_gemini_json(None, "prompt", None, max_retries=3)
+    assert exc.value.code == 1

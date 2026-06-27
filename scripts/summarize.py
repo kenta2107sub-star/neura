@@ -97,7 +97,7 @@ def build_prompt(articles: list[CollectedArticle], template: str) -> str:
 
 
 def _call_gemini(client, prompt: str, types) -> str:
-    """リトライ付き Gemini 呼び出し。レスポンステキストを返す。失敗時は sys.exit(1)。"""
+    """リトライ付き Gemini 呼び出し。レスポンステキストを返す。API例外のみリトライ対象。失敗時は sys.exit(1)。"""
     max_retries = 3
     retry_wait = 30
     for attempt in range(1, max_retries + 1):
@@ -113,6 +113,26 @@ def _call_gemini(client, prompt: str, types) -> str:
             return response.text
         except Exception as e:
             print(f"[WARN]  summarize: Gemini API attempt {attempt}/{max_retries} failed: {e}")
+            if attempt < max_retries:
+                time.sleep(retry_wait)
+    print("[ERROR] Gemini API failed after all retries")
+    sys.exit(1)
+
+
+def _call_gemini_json(client, prompt: str, types, max_retries: int = 3) -> list:
+    """Stage 2専用。API呼び出し＋JSONパースをセットでリトライする。
+    Geminiが不正なJSONを返した場合も再呼び出しして回復を試みる。失敗時は sys.exit(1)。
+    """
+    retry_wait = 30
+    for attempt in range(1, max_retries + 1):
+        text = _call_gemini(client, prompt, types)
+        try:
+            result = json.loads(text)
+            if not isinstance(result, list):
+                raise ValueError("not a JSON array")
+            return result
+        except (json.JSONDecodeError, ValueError) as e:
+            print(f"[WARN]  summarize: Stage 2 JSON parse attempt {attempt}/{max_retries} failed: {e}")
             if attempt < max_retries:
                 time.sleep(retry_wait)
     print("[ERROR] Gemini API failed after all retries")
@@ -152,16 +172,7 @@ def main() -> None:
 
     # ── Stage 2: 選定記事を翻訳・要約 ────────────────────────────────
     print(f"[INFO]  summarize: Stage 2 翻訳・要約（{len(selected)}件）")
-    text = _call_gemini(client, build_prompt(selected, config["gemini_prompt"]), types)
-    try:
-        result = json.loads(text)
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"[ERROR] Failed to parse Gemini response: {e}")
-        sys.exit(1)
-
-    if not isinstance(result, list):
-        print("[ERROR] Failed to parse Gemini response: not a JSON array")
-        sys.exit(1)
+    result = _call_gemini_json(client, build_prompt(selected, config["gemini_prompt"]), types)
 
     # Gemini が同じ URL を重複して返すケースを除去
     seen_urls: set[str] = set()
