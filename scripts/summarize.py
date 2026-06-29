@@ -27,6 +27,23 @@ SELECT_MAX = 10                  # Stage 1 で選ぶ件数の上限
 MAX_ARTICLES = 10  # スロット設定が未設定の場合のフォールバック
 JST = timezone(timedelta(hours=9))
 
+VALID_CATEGORIES = {"ニュース", "研究", "活用事例", "ツール"}
+
+CATEGORY_NORM: dict[str, str] = {
+    # 英語表記
+    "news": "ニュース",
+    "research": "研究",
+    "use case": "活用事例", "use cases": "活用事例",
+    "application": "活用事例", "applications": "活用事例",
+    "tool": "ツール", "tools": "ツール",
+    "product": "ツール", "products": "ツール",
+    # 日本語バリエーション
+    "ニュース・動向": "ニュース", "最新ニュース": "ニュース",
+    "研究・論文": "研究", "学術研究": "研究",
+    "活用事例・ビジネス": "活用事例", "活用事例・実践": "活用事例",
+    "ツール・製品": "ツール", "ツール・サービス": "ツール",
+}
+
 SELECTION_PROMPT = (
     "以下のAI関連記事から、AIを学び始めた一般人が「面白い・試してみたい」と感じる記事を最大{n}件選んでください。\n"
     "選んだ記事のURLだけをJSON配列（文字列のリスト）で返してください。\n\n"
@@ -60,6 +77,20 @@ def save_json(path: str, data) -> None:
 
 def normalize_url(url: str) -> str:
     return url.rstrip("/").split("?")[0]
+
+
+def normalize_category(cat: str | None) -> str:
+    """Geminiが返したカテゴリ値を正規4値にマッピングする。"""
+    if not cat:
+        return ""
+    if cat in VALID_CATEGORIES:
+        return cat
+    normalized = CATEGORY_NORM.get(cat) or CATEGORY_NORM.get(cat.lower().strip())
+    if normalized:
+        print(f"[INFO]  summarize: category正規化 '{cat}' → '{normalized}'")
+        return normalized
+    print(f"[WARN]  summarize: 未知のcategory '{cat}' → フィルタで除外される")
+    return cat
 
 
 def select_articles(result: list[Article], genres: dict[str, bool], max_articles: int = MAX_ARTICLES) -> list[Article]:
@@ -173,6 +204,12 @@ def main() -> None:
     # ── Stage 2: 選定記事を翻訳・要約 ────────────────────────────────
     print(f"[INFO]  summarize: Stage 2 翻訳・要約（{len(selected)}件）")
     result = _call_gemini_json(client, build_prompt(selected, config["gemini_prompt"]), types)
+
+    # カテゴリ正規化（Geminiが英語や日本語バリエーションを返す場合に備える）
+    raw_cats = [r.get("category") for r in result]
+    print(f"[INFO]  summarize: Gemini返却カテゴリ（正規化前）: {raw_cats}")
+    for r in result:
+        r["category"] = normalize_category(r.get("category"))
 
     # Gemini が同じ URL を重複して返すケースを除去
     seen_urls: set[str] = set()

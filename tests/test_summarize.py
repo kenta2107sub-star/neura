@@ -52,6 +52,37 @@ def test_select_articles_sorts_and_caps():
     assert out[0]["importance"] == 14  # 降順先頭が最大
 
 
+def test_normalize_category_valid_passthrough():
+    for cat in ["ニュース", "研究", "活用事例", "ツール"]:
+        assert summarize.normalize_category(cat) == cat
+
+
+def test_normalize_category_english_mapping():
+    assert summarize.normalize_category("News") == "ニュース"
+    assert summarize.normalize_category("news") == "ニュース"
+    assert summarize.normalize_category("Research") == "研究"
+    assert summarize.normalize_category("Tool") == "ツール"
+    assert summarize.normalize_category("tools") == "ツール"
+    assert summarize.normalize_category("Use Cases") == "活用事例"
+    assert summarize.normalize_category("application") == "活用事例"
+
+
+def test_normalize_category_japanese_variant_mapping():
+    assert summarize.normalize_category("ニュース・動向") == "ニュース"
+    assert summarize.normalize_category("研究・論文") == "研究"
+    assert summarize.normalize_category("ツール・製品") == "ツール"
+    assert summarize.normalize_category("活用事例・ビジネス") == "活用事例"
+
+
+def test_normalize_category_unknown_returns_as_is():
+    assert summarize.normalize_category("unknown_cat") == "unknown_cat"
+
+
+def test_normalize_category_none_or_empty():
+    assert summarize.normalize_category(None) == ""
+    assert summarize.normalize_category("") == ""
+
+
 def test_normalize_url_strips_trailing_slash_and_query():
     assert summarize.normalize_url("https://x.com/a/") == "https://x.com/a"
     assert summarize.normalize_url("https://x.com/a?utm=1") == "https://x.com/a"
