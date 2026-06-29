@@ -76,8 +76,9 @@
     },
     {
       "hour": 19,
-      "enabled": false,
+      "enabled": true,
       "max_articles": 5,
+      "cron_job_id": "7946648",
       "genres": {
         "ニュース": true,
         "研究": false,
