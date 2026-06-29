@@ -207,14 +207,18 @@ def test_main_exits_when_zero_articles_after_filter(tmp_path, monkeypatch):
     from unittest.mock import MagicMock
     mock_google = ModuleType("google")
     mock_genai = ModuleType("google.genai")
-    mock_types = ModuleType("google.genai.types")
+    mock_types = MagicMock()  # Schema/Type など全属性を MagicMock で吸収
     mock_genai.Client = MagicMock(return_value=MagicMock())
     mock_google.genai = mock_genai
     monkeypatch.setitem(sys.modules, "google", mock_google)
     monkeypatch.setitem(sys.modules, "google.genai", mock_genai)
     monkeypatch.setitem(sys.modules, "google.genai.types", mock_types)
 
+    import json as json_mod2
+    stage1_urls = json_mod2.dumps([a["url"] for a in gemini_result])
+
     with patch("summarize.load_config", return_value=config_with_no_enabled_genres), \
+         patch("summarize._call_gemini", return_value=stage1_urls), \
          patch("summarize._call_gemini_json", return_value=gemini_result):
         with pytest.raises(SystemExit) as exc:
             summarize.main()

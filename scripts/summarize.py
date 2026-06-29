@@ -127,7 +127,7 @@ def build_prompt(articles: list[CollectedArticle], template: str) -> str:
     return template.replace("{articles}", articles_text)
 
 
-def _call_gemini(client, prompt: str, types) -> str:
+def _call_gemini(client, prompt: str, types, response_schema=None) -> str:
     """リトライ付き Gemini 呼び出し。レスポンステキストを返す。API例外のみリトライ対象。失敗時は sys.exit(1)。"""
     max_retries = 3
     retry_wait = 30
@@ -138,6 +138,7 @@ def _call_gemini(client, prompt: str, types) -> str:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
+                    response_schema=response_schema,
                     temperature=0.3,
                 ),
             )
@@ -150,13 +151,13 @@ def _call_gemini(client, prompt: str, types) -> str:
     sys.exit(1)
 
 
-def _call_gemini_json(client, prompt: str, types, max_retries: int = 3) -> list:
+def _call_gemini_json(client, prompt: str, types, response_schema=None, max_retries: int = 3) -> list:
     """Stage 2専用。API呼び出し＋JSONパースをセットでリトライする。
     Geminiが不正なJSONを返した場合も再呼び出しして回復を試みる。失敗時は sys.exit(1)。
     """
     retry_wait = 30
     for attempt in range(1, max_retries + 1):
-        text = _call_gemini(client, prompt, types)
+        text = _call_gemini(client, prompt, types, response_schema=response_schema)
         try:
             result = json.loads(text)
             if not isinstance(result, list):
@@ -183,6 +184,26 @@ def main() -> None:
     articles: list[CollectedArticle] = load_json(INPUT_PATH)
     client = genai.Client(api_key=api_key)
 
+    # Stage 2 用レスポンススキーマ：category を enum に強制して null 返却を防ぐ
+    article_schema = types.Schema(
+        type=types.Type.ARRAY,
+        items=types.Schema(
+            type=types.Type.OBJECT,
+            properties={
+                "url": types.Schema(type=types.Type.STRING),
+                "title_ja": types.Schema(type=types.Type.STRING),
+                "summary_ja": types.Schema(type=types.Type.STRING),
+                "translation_ja": types.Schema(type=types.Type.STRING, nullable=True),
+                "category": types.Schema(
+                    type=types.Type.STRING,
+                    enum=["ニュース", "研究", "活用事例", "ツール"],
+                ),
+                "importance": types.Schema(type=types.Type.INTEGER),
+            },
+            required=["url", "title_ja", "summary_ja", "category", "importance"],
+        ),
+    )
+
     # ── Stage 1: タイトル＋冒頭文で選定 ──────────────────────────────
     print(f"[INFO]  summarize: Stage 1 選定（{len(articles)}件 → 最大{SELECT_MAX}件）")
     sel_text = _call_gemini(client, build_selection_prompt(articles), types)
@@ -203,7 +224,7 @@ def main() -> None:
 
     # ── Stage 2: 選定記事を翻訳・要約 ────────────────────────────────
     print(f"[INFO]  summarize: Stage 2 翻訳・要約（{len(selected)}件）")
-    result = _call_gemini_json(client, build_prompt(selected, config["gemini_prompt"]), types)
+    result = _call_gemini_json(client, build_prompt(selected, config["gemini_prompt"]), types, response_schema=article_schema)
 
     # カテゴリ正規化（Geminiが英語や日本語バリエーションを返す場合に備える）
     raw_cats = [r.get("category") for r in result]
