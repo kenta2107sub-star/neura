@@ -70,6 +70,11 @@ def main() -> None:
         sys.exit(1)
 
     articles: list[Article] = load_json(INPUT_PATH)
+
+    if not articles:
+        print("[ERROR] notify: 通知対象の記事が0件のため送信をスキップ")
+        sys.exit(1)
+
     date = datetime.now(tz=timezone.utc).strftime("%Y/%m/%d")
 
     payload = build_discord_payload(articles, date)

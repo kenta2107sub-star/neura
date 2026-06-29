@@ -167,3 +167,55 @@ def test_call_gemini_json_exits_after_max_retries():
         with pytest.raises(SystemExit) as exc:
             summarize._call_gemini_json(None, "prompt", None, max_retries=3)
     assert exc.value.code == 1
+
+
+def test_select_articles_returns_empty_when_all_genres_disabled():
+    """全genresがfalseの場合、select_articlesは空リストを返すこと。"""
+    import pytest
+    result = [{"category": "ニュース", "importance": 5, "url": "u1"}]
+    genres = {"ニュース": False, "研究": False, "活用事例": False, "ツール": False}
+    out = summarize.select_articles(result, genres)
+    assert out == []
+
+
+def test_main_exits_when_zero_articles_after_filter(tmp_path, monkeypatch):
+    """カテゴリフィルタ後に0件となった場合、sys.exit(1)すること。"""
+    import pytest
+    import json as json_mod
+    import sys
+    from types import ModuleType
+
+    collected = [{"title": "t", "url": "https://x.com/a", "source": "RSS",
+                  "score": 0, "published_at": "2026-06-18T00:00:00Z", "body_text": "本文"}]
+    collected_path = tmp_path / "collected.json"
+    collected_path.write_text(json_mod.dumps(collected), encoding="utf-8")
+    monkeypatch.setattr(summarize, "INPUT_PATH", str(collected_path))
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    gemini_result = [{"url": "https://x.com/a", "title_ja": "タイトル",
+                      "summary_ja": "要約", "translation_ja": "翻訳",
+                      "category": "ニュース", "importance": 3}]
+
+    config_with_no_enabled_genres = {
+        **config_loader.DEFAULT_CONFIG,
+        "notify_schedules": [{"hour": 0, "enabled": True, "max_articles": 5,
+                               "genres": {"ニュース": False, "研究": False,
+                                          "活用事例": False, "ツール": False}}],
+    }
+
+    # google.genai をモック化（インストール不要にする）
+    from unittest.mock import MagicMock
+    mock_google = ModuleType("google")
+    mock_genai = ModuleType("google.genai")
+    mock_types = ModuleType("google.genai.types")
+    mock_genai.Client = MagicMock(return_value=MagicMock())
+    mock_google.genai = mock_genai
+    monkeypatch.setitem(sys.modules, "google", mock_google)
+    monkeypatch.setitem(sys.modules, "google.genai", mock_genai)
+    monkeypatch.setitem(sys.modules, "google.genai.types", mock_types)
+
+    with patch("summarize.load_config", return_value=config_with_no_enabled_genres), \
+         patch("summarize._call_gemini_json", return_value=gemini_result):
+        with pytest.raises(SystemExit) as exc:
+            summarize.main()
+    assert exc.value.code == 1

@@ -232,7 +232,8 @@ def main() -> None:
     # FR-06：無効カテゴリ（genres=false）を除外してから重要度上位を選定する
     result_sorted = select_articles(result, slot_genres, slot_max)
     if not result_sorted:
-        print("[WARN]  summarize: 有効カテゴリの記事が0件（genres設定を確認）")
+        print("[ERROR] summarize: 有効カテゴリの記事が0件（genres設定を確認）")
+        sys.exit(1)
 
     if len(result_sorted) < 5:
         print(f"[WARN]  summarize: Only {len(result_sorted)} articles selected")
