@@ -3,6 +3,7 @@ name: Neura Daily Digest
 on:
   schedule:
     - cron: '0 4 * * *'    # 13:00 JST
+    - cron: '0 10 * * *'    # 19:00 JST
   workflow_dispatch:         # 手動実行（テスト用）
 
 jobs:
