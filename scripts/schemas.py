@@ -33,6 +33,7 @@ class NotifySchedule(TypedDict):
     enabled: bool
     max_articles: int       # このスロットの通知件数上限（1〜10）
     genres: dict[str, bool] # このスロットで通知するジャンル
+    cron_job_id: Optional[str]  # cron-job.org ジョブID（UI管理・Pythonスクリプトは不使用）
 
 
 class AppConfig(TypedDict):

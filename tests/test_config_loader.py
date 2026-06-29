@@ -55,6 +55,22 @@ def test_migration_run_hour_jst_to_notify_schedules(tmp_path):
     assert cfg["notify_schedules"][0]["enabled"] is True
 
 
+def test_cron_job_id_preserved_through_load(tmp_path):
+    """notify_schedules の cron_job_id が load_config() を通じて保持されること。"""
+    cfg_data = {
+        "notify_schedules": [
+            {"hour": 13, "enabled": True, "max_articles": 5,
+             "cron_job_id": "7654321",
+             "genres": {"ニュース": True, "研究": True, "活用事例": True, "ツール": True}},
+        ],
+        "sources": [], "keywords": {"en": [], "ja": []}, "gemini_prompt": "{articles}",
+    }
+    f = tmp_path / "cfg.json"
+    f.write_text(__import__('json').dumps(cfg_data), encoding="utf-8")
+    cfg = config_loader.load_config(str(f))
+    assert cfg["notify_schedules"][0]["cron_job_id"] == "7654321"
+
+
 def test_migration_global_genres_to_slot(tmp_path):
     """グローバルの genres / max_articles がスロット内に引き継がれること。"""
     cfg_data = {

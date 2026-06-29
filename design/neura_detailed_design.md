@@ -1094,6 +1094,10 @@ function setGithubCreds({ owner, repo, pat }) {
     if (pat   !== undefined) localStorage.setItem('neura_github_pat',   pat);
 }
 function clearGithubPat() { localStorage.removeItem('neura_github_pat'); }
+
+// cron-job.org APIキー（localStorage にのみ保存）
+function getCronJobKey() { return localStorage.getItem('neura_cronjob_apikey') || ''; }
+function setCronJobKey(key) { localStorage.setItem('neura_cronjob_apikey', key); }
 ```
 
 #### config.json の取得（GitHub Contents API）
@@ -1239,6 +1243,42 @@ async function ghPutWorkflow(newCronExpr) {
 }
 ```
 
+#### cron-job.org スケジュール更新（cron-job.org API）
+
+```javascript
+// enabled かつ cron_job_id が設定されているスロットをすべて更新する
+// APIキー未設定（空文字）の場合は何もしない（optional 機能）
+// 失敗時: ERR-14 をスロー（daily.yml は更新済みのため saveSettings はエラー表示だけして継続）
+async function cronJobOrgUpdate(schedules) {
+    const apiKey = getCronJobKey();
+    if (!apiKey) return;
+    for (const slot of schedules.filter(s => s.enabled && s.cron_job_id)) {
+        const res = await fetch(`https://api.cron-job.org/jobs/${slot.cron_job_id}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                job: {
+                    schedule: {
+                        timezone: 'Asia/Tokyo',
+                        hours:  [slot.hour],
+                        minutes: [0],
+                        mdays:   [-1],
+                        months:  [-1],
+                        wdays:   [-1]
+                    }
+                }
+            })
+        });
+        if (!res.ok) throw { code: 'ERR-14' };
+    }
+}
+```
+
+**cron-job.org API補足**：`PATCH /jobs/{jobId}` のリクエストボディは上記 `job.schedule` 構造を使用する。`timezone: 'Asia/Tokyo'` を指定することで JST 時刻をそのまま `hours` に渡せる。`-1` は cron の `*`（すべて）を意味する。
+
 #### 保存フロー（バリデーション含む）
 
 ```javascript
@@ -1266,7 +1306,7 @@ async function saveSettings(config, prevSchedules) {
         return;
     }
 
-    // notify_schedules が変更された場合のみ daily.yml も更新する（有効スロットの cron 行を置換）
+    // notify_schedules が変更された場合のみ daily.yml と cron-job.org を更新する
     const schedulesChanged = JSON.stringify(config.notify_schedules.map(s => ({hour: s.hour, enabled: s.enabled})))
         !== JSON.stringify((prevSchedules || []).map(s => ({hour: s.hour, enabled: s.enabled})));
     if (schedulesChanged) {
@@ -1275,6 +1315,12 @@ async function saveSettings(config, prevSchedules) {
             await ghPutWorkflow(enabledSlots.map(s => jstHourToCron(s.hour)));
         } catch (e) {
             showBanner(ERROR_MESSAGES['ERR-13']);  // config は保存済みのため return しない
+        }
+        // cron-job.org APIキーが設定されている場合のみ更新（任意機能）
+        try {
+            await cronJobOrgUpdate(config.notify_schedules);
+        } catch (e) {
+            showBanner(ERROR_MESSAGES['ERR-14']);  // daily.yml は更新済みのため return しない
         }
     }
 
@@ -1311,6 +1357,7 @@ class NotifySchedule(TypedDict):
     enabled: bool
     max_articles: int       # このスロットの通知件数上限（1〜10）
     genres: dict[str, bool] # このスロットで通知するジャンル
+    cron_job_id: Optional[str]  # cron-job.org のジョブID（UI管理・Pythonスクリプトは不使用）
 
 class AppConfig(TypedDict):
     sources: list[Source]
@@ -1500,6 +1547,7 @@ jobs:
 | ERR-11 | FR-06 | フロントエンド（SCR-04） | その他HTTP/ネットワークエラー | バナー表示：`"設定の保存に失敗しました。しばらく後に再試行してください。"` |
 | ERR-12 | FR-06 | フロントエンド（SCR-04） | URL が空または `https://` 以外 | ソースセクション上部に表示：`"URLが未入力またはhttps://で始まっていないソースがあります。"` 該当行URL欄を赤枠表示 |
 | ERR-13 | FR-06 | フロントエンド（SCR-04） | `.github/workflows/daily.yml` の PUT 失敗（権限不足・置換失敗等） | バナー表示：`"設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。"`（config.json は保存済み） |
+| ERR-14 | FR-06 | フロントエンド（SCR-04） | cron-job.org API の PATCH 失敗（APIキー無効・ジョブID誤り・CORS等） | バナー表示：`"設定は保存しましたが、cron-job.org のスケジュール更新に失敗しました。APIキーとジョブIDを確認してください。"`（config.json・daily.yml は保存済み） |
 
 > ERR-04〜07はすべてGitHub Actionsのログおよびワークフロー失敗通知で検知する。
 > - ERR-04・ERR-05：Pythonスクリプトのexit(1)によりワークフローが失敗状態になる。GitHub Actionsのデフォルト失敗通知（メール等）で検知する

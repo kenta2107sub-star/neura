@@ -1333,6 +1333,10 @@
           <label for="cfg-pat">Personal Access Token（scope: repo, workflow）</label>
           <input id="cfg-pat" class="settings-input" type="password" autocomplete="off" placeholder="ghp_...">
         </div>
+        <div class="settings-field">
+          <label for="cfg-cronjob-key">cron-job.org APIキー（任意・時刻自動同期に使用）</label>
+          <input id="cfg-cronjob-key" class="settings-input" type="password" autocomplete="off" placeholder="cron-job.org API キー">
+        </div>
         <div class="settings-conn">
           <span id="conn-status" class="conn-status">❌ 未接続</span>
           <button class="action-btn action-btn--translate" onclick="saveGithubCreds()">[ 接続情報を保存 ]</button>
@@ -1361,7 +1365,7 @@
           <div id="src-run-status" class="run-status" style="display:none;"></div>
         </div>
         <div id="cfg-schedules" class="schedule-list"></div>
-        <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）</p>
+        <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）。cron-job.org のAPIキーとジョブIDを設定すると、cron-job.org のスケジュールも自動同期されます。</p>
         <p class="settings-fielderr" id="cfg-sched-err" style="display:none;margin-top:4px;">少なくとも1つのスケジュールを有効にしてください。</p>
         <p style="font-size:11px;color:var(--sub);margin-top:10px;line-height:1.7;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">⚠️ <strong style="color:var(--sub);">スケジュール変更の注意</strong><br>新しいスケジュールを登録してから <strong style="color:var(--sub);">最初の実行まで最長24〜48時間かかる</strong> ことがあります（GitHub Actions の仕様）。また、GitHub の負荷状況によって設定時刻より数時間遅れて実行される場合があります。いずれも正常な動作です。</p>
       </div>
@@ -1966,7 +1970,8 @@
     'ERR-09': "PATにリポジトリへの書き込み権限がありません。スコープ 'repo' / 'workflow' を確認してください。",
     'ERR-10': 'リポジトリが見つかりません。Owner / Repo の設定を確認してください。',
     'ERR-11': '設定の保存に失敗しました。しばらく後に再試行してください。',
-    'ERR-13': "設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。"
+    'ERR-13': "設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。",
+    'ERR-14': '設定は保存しましたが、cron-job.org のスケジュール更新に失敗しました。APIキーとジョブIDを確認してください。'
   };
 
   let currentSha = null;          // ghGetConfig で取得した config.json の sha
@@ -2011,7 +2016,38 @@
     if (!putRes.ok) throw { code: 'ERR-13' };
   }
 
+  /* cron-job.org スケジュール更新 */
+  async function cronJobOrgUpdate(schedules) {
+    const apiKey = getCronJobKey();
+    if (!apiKey) return;
+    for (const slot of schedules.filter(s => s.enabled && s.cron_job_id)) {
+      const res = await fetch(`https://api.cron-job.org/jobs/${slot.cron_job_id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          job: {
+            schedule: {
+              timezone: 'Asia/Tokyo',
+              hours:   [slot.hour],
+              minutes: [0],
+              mdays:   [-1],
+              months:  [-1],
+              wdays:   [-1]
+            }
+          }
+        })
+      });
+      if (!res.ok) throw { code: 'ERR-14' };
+    }
+  }
+
   /* localStorage 認証情報 */
+  function getCronJobKey() { return localStorage.getItem('neura_cronjob_apikey') || ''; }
+  function setCronJobKey(key) { localStorage.setItem('neura_cronjob_apikey', key); }
+
   function getGithubCreds() {
     return {
       owner: localStorage.getItem('neura_github_owner') || '',
@@ -2067,6 +2103,7 @@
     document.getElementById('cfg-owner').value = owner;
     document.getElementById('cfg-repo').value = repo;
     document.getElementById('cfg-pat').value = pat;
+    document.getElementById('cfg-cronjob-key').value = getCronJobKey();
     updateConnStatus();
     hideToast();
 
@@ -2125,6 +2162,7 @@
       const isDisabled = !s.enabled;
       const slotGenres = s.genres || { ...DEFAULT_GENRES_JS };
       const maxArt = typeof s.max_articles === 'number' ? s.max_articles : 10;
+      const cronJobId = s.cron_job_id || '';
       const genreChecks = GENRE_ORDER.map(g => `
           <label class="settings-check">
             <input type="checkbox" id="sched-${i}-g-${GENRE_KEY[g]}" ${slotGenres[g] !== false ? 'checked' : ''}>
@@ -2148,6 +2186,11 @@
             <span class="slot-label">件数: <strong id="sched-${i}-max-val">${maxArt}</strong> 件</span>
             <input type="range" class="settings-slider" id="sched-${i}-max" min="1" max="10" value="${maxArt}"
                    oninput="document.getElementById('sched-${i}-max-val').textContent=this.value">
+          </div>
+          <div class="slot-field">
+            <span class="slot-label">cron-job.org ジョブID</span>
+            <input type="text" class="settings-input" id="sched-${i}-cjid"
+                   style="width:130px;" placeholder="例: 1234567" value="${escHtml(cronJobId)}">
           </div>
         </div>
       </div>`;
@@ -2201,10 +2244,12 @@
         const el = document.getElementById(`sched-${i}-g-${GENRE_KEY[g]}`);
         genres[g] = el ? el.checked : true;
       });
+      const cjid = (document.getElementById(`sched-${i}-cjid`)?.value || '').trim();
       return {
         hour: parseInt(document.getElementById(`sched-${i}-h`).value, 10),
         enabled: document.getElementById(`sched-${i}-en`).checked,
         max_articles: parseInt(document.getElementById(`sched-${i}-max`).value, 10),
+        ...(cjid ? { cron_job_id: cjid } : {}),
         genres
       };
     });
@@ -2295,6 +2340,7 @@
       repo:  document.getElementById('cfg-repo').value.trim(),
       pat:   document.getElementById('cfg-pat').value.trim()
     });
+    setCronJobKey(document.getElementById('cfg-cronjob-key').value.trim());
     loadConfig();  // 再読込（接続できれば config を取得）
   }
   function clearPat() {
@@ -2352,7 +2398,7 @@
       return;
     }
 
-    // notify_schedules が変更された場合のみ daily.yml も更新する
+    // notify_schedules が変更された場合のみ daily.yml と cron-job.org を更新する
     const schedulesChanged = JSON.stringify(config.notify_schedules) !== JSON.stringify(prevSchedules);
     if (schedulesChanged) {
       try {
@@ -2363,6 +2409,11 @@
         btn.disabled = false;
         btn.textContent = '[ 保存する ]';
         return;
+      }
+      try {
+        await cronJobOrgUpdate(config.notify_schedules);
+      } catch (e) {
+        showBanner(ERROR_MESSAGES['ERR-14'], true);  // config・daily.yml は保存済み
       }
     }
 
