@@ -81,8 +81,8 @@
       "cron_job_id": "7946648",
       "genres": {
         "ニュース": true,
-        "研究": false,
-        "活用事例": true,
+        "研究": true,
+        "活用事例": false,
         "ツール": false
       }
     },
