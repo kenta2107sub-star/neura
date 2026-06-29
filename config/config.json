@@ -66,6 +66,7 @@
       "hour": 13,
       "enabled": true,
       "max_articles": 5,
+      "cron_job_id": "7946234",
       "genres": {
         "ニュース": false,
         "研究": false,
