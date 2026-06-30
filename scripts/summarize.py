@@ -140,7 +140,7 @@ def _call_gemini(client, prompt: str, types, response_schema=None) -> str:
                     response_mime_type="application/json",
                     response_schema=response_schema,
                     temperature=0.3,
-                    max_output_tokens=8192,
+                    max_output_tokens=32768,
                 ),
             )
             return response.text
