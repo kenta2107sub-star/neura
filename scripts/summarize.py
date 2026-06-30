@@ -46,6 +46,7 @@ CATEGORY_NORM: dict[str, str] = {
 
 SELECTION_PROMPT = (
     "以下のAI関連記事から、AIを学び始めた一般人が「面白い・試してみたい」と感じる記事を最大{n}件選んでください。\n"
+    "優先するカテゴリ（このカテゴリに該当する記事を優先して選んでください）: {genres}\n"
     "選んだ記事のURLだけをJSON配列（文字列のリスト）で返してください。\n\n"
     "記事一覧:\n"
     "{articles}\n\n"
@@ -100,8 +101,10 @@ def select_articles(result: list[Article], genres: dict[str, bool], max_articles
     return sorted(filtered, key=lambda x: x.get("importance", 0), reverse=True)[:max_articles]
 
 
-def build_selection_prompt(articles: list[CollectedArticle], n: int = SELECT_MAX) -> str:
+def build_selection_prompt(articles: list[CollectedArticle], n: int = SELECT_MAX, genres: dict[str, bool] | None = None) -> str:
     """Stage 1 用：タイトル＋冒頭文のみで選定プロンプトを構築する。"""
+    enabled = [g for g, on in genres.items() if on] if genres else list(VALID_CATEGORIES)
+    genres_text = "・".join(enabled) if enabled else "すべて"
     articles_text = "\n\n".join(
         f"[{i + 1}] タイトル: {a['title']}\n"
         f"    URL: {a['url']}\n"
@@ -109,7 +112,7 @@ def build_selection_prompt(articles: list[CollectedArticle], n: int = SELECT_MAX
         f"    本文: {a['body_text'][:BODY_MAX_CHARS_SELECT] if a.get('body_text') else '（本文取得不可）'}"
         for i, a in enumerate(articles)
     )
-    return SELECTION_PROMPT.format(n=n, articles=articles_text)
+    return SELECTION_PROMPT.format(n=n, genres=genres_text, articles=articles_text)
 
 
 def build_prompt(articles: list[CollectedArticle], template: str) -> str:
@@ -205,9 +208,16 @@ def main() -> None:
         ),
     )
 
-    # ── Stage 1: タイトル＋冒頭文で選定 ──────────────────────────────
+    # スロット設定を Stage 1 の前に取得してジャンル誘導に使う
+    slot = get_current_slot(config.get("notify_schedules", []))
+    slot_genres = slot.get("genres") or {"ニュース": True, "研究": True, "活用事例": True, "ツール": True}
+    slot_max = max(1, min(10, int(slot.get("max_articles", MAX_ARTICLES))))
+    enabled_genres = sorted(g for g, on in slot_genres.items() if on)
+    print(f"[INFO]  summarize: スロット hour={slot.get('hour','?')} 有効ジャンル={enabled_genres} max={slot_max}")
+
+    # ── Stage 1: タイトル＋冒頭文で選定（有効ジャンルを誘導） ────────────────
     print(f"[INFO]  summarize: Stage 1 選定（{len(articles)}件 → 最大{SELECT_MAX}件）")
-    sel_text = _call_gemini(client, build_selection_prompt(articles), types)
+    sel_text = _call_gemini(client, build_selection_prompt(articles, genres=slot_genres), types)
     try:
         selected_urls: list[str] = json.loads(sel_text)
         if not isinstance(selected_urls, list):
@@ -244,12 +254,6 @@ def main() -> None:
     if len(deduped) < len(result):
         print(f"[WARN]  summarize: Gemini重複 {len(result) - len(deduped)}件を除去")
     result = deduped
-
-    # 現在のスロット設定を取得（JST 時刻で照合）
-    slot = get_current_slot(config.get("notify_schedules", []))
-    slot_genres = slot.get("genres") or {"ニュース": True, "研究": True, "活用事例": True, "ツール": True}
-    slot_max = max(1, min(10, int(slot.get("max_articles", MAX_ARTICLES))))
-    print(f"[INFO]  summarize: スロット hour={slot.get('hour','?')} genres={list(slot_genres)} max={slot_max}")
 
     # FR-06：無効カテゴリ（genres=false）を除外してから重要度上位を選定する
     result_sorted = select_articles(result, slot_genres, slot_max)
