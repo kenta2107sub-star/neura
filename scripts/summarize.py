@@ -22,7 +22,7 @@ OUTPUT_PATH = "/tmp/neura_summarized.json"
 MODEL_NAME = "gemini-2.5-flash"
 GEMINI_TIMEOUT = 30  # NF-01
 BODY_MAX_CHARS_SELECT = 700      # Stage 1 選定用（タイトル＋冒頭のみ）
-BODY_MAX_CHARS_TRANSLATE = 3000  # Stage 2 翻訳用（フル本文）
+BODY_MAX_CHARS_TRANSLATE = 5000  # Stage 2 翻訳用（フル本文）
 SELECT_MAX = 10                  # Stage 1 で選ぶ件数の上限
 MAX_ARTICLES = 10  # スロット設定が未設定の場合のフォールバック
 JST = timezone(timedelta(hours=9))
