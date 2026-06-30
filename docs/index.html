@@ -2399,22 +2399,15 @@
       return;
     }
 
-    // notify_schedules が変更された場合のみ daily.yml と cron-job.org を更新する
+    // notify_schedules が変更された場合のみ cron-job.org を更新する
+    // daily.yml は workflow_dispatch のみで schedule ブロックを持たないため更新不要
     const schedulesChanged = JSON.stringify(config.notify_schedules) !== JSON.stringify(prevSchedules);
     if (schedulesChanged) {
-      try {
-        await ghPutWorkflow(config.notify_schedules);
-        prevSchedules = config.notify_schedules.map(s => ({ ...s }));
-      } catch (e) {
-        showBanner(ERROR_MESSAGES['ERR-13'], true);  // config は保存済み
-        btn.disabled = false;
-        btn.textContent = '[ 保存する ]';
-        return;
-      }
+      prevSchedules = config.notify_schedules.map(s => ({ ...s }));
       try {
         await cronJobOrgUpdate(config.notify_schedules);
       } catch (e) {
-        showBanner(ERROR_MESSAGES['ERR-14'], true);  // config・daily.yml は保存済み
+        showBanner(ERROR_MESSAGES['ERR-14'], true);  // config は保存済みのため return しない
       }
     }
 

@@ -1293,21 +1293,16 @@ async function saveSettings(config, prevSchedules) {
         return;
     }
 
-    // notify_schedules が変更された場合のみ daily.yml と cron-job.org を更新する
+    // notify_schedules が変更された場合のみ cron-job.org を更新する
+    // ※ daily.yml は workflow_dispatch のみで schedule ブロックを持たないため ghPutWorkflow() は呼ばない
     const schedulesChanged = JSON.stringify(config.notify_schedules.map(s => ({hour: s.hour, enabled: s.enabled})))
         !== JSON.stringify((prevSchedules || []).map(s => ({hour: s.hour, enabled: s.enabled})));
     if (schedulesChanged) {
-        try {
-            const enabledSlots = config.notify_schedules.filter(s => s.enabled);
-            await ghPutWorkflow(enabledSlots.map(s => jstHourToCron(s.hour)));
-        } catch (e) {
-            showBanner(ERROR_MESSAGES['ERR-13']);  // config は保存済みのため return しない
-        }
         // cron-job.org APIキーが設定されている場合のみ更新（任意機能）
         try {
             await cronJobOrgUpdate(config.notify_schedules);
         } catch (e) {
-            showBanner(ERROR_MESSAGES['ERR-14']);  // daily.yml は更新済みのため return しない
+            showBanner(ERROR_MESSAGES['ERR-14']);  // config は保存済みのため return しない
         }
     }
 
