@@ -1412,6 +1412,21 @@
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/^---$/gm, '<hr>');
+    // Gemini が見出しと本文を改行なしで連結してしまう不具合の防御策：
+    // 見出し行が異常に長い場合、自然な区切り位置（」。！？）で見出しと本文に分割する
+    s = s.replace(/^(#{2,4}) (.+)$/gm, (match, hashes, content) => {
+      const MAX_HEADING_CHARS = 40;
+      if (content.length <= MAX_HEADING_CHARS) return match;
+      const searchEnd = Math.min(content.length, MAX_HEADING_CHARS + 40);
+      let cut = -1;
+      for (let i = 8; i < searchEnd; i++) {
+        if ('」。！？'.includes(content[i])) { cut = i + 1; break; }
+      }
+      if (cut === -1) cut = MAX_HEADING_CHARS;
+      const headingText = content.slice(0, cut);
+      const rest = content.slice(cut).trim();
+      return rest ? `${hashes} ${headingText}\n\n${rest}` : match;
+    });
     s = s.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     s = s.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
