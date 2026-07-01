@@ -132,8 +132,8 @@ def build_prompt(articles: list[CollectedArticle], template: str) -> str:
 
 def _call_gemini(client, prompt: str, types, response_schema=None) -> str:
     """リトライ付き Gemini 呼び出し。レスポンステキストを返す。API例外のみリトライ対象。失敗時は sys.exit(1)。"""
-    max_retries = 3
-    retry_wait = 30
+    max_retries = 5
+    retry_wait = 60
     for attempt in range(1, max_retries + 1):
         try:
             response = client.models.generate_content(
