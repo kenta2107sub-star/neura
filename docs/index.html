@@ -484,6 +484,7 @@
       position: relative;
       overflow: hidden;
     }
+    .article-card-anim { animation: fade-slide-in 1.1s ease both; }
     .article-ln {
       width: 18px;
       text-align: right;
@@ -1758,16 +1759,17 @@
     document.getElementById('article-list').innerHTML = articles.map((art, idx) => {
       const isFeature = art.importance >= 5;
       const isCompact = art.importance <= 2;
-      const cardClass = isFeature ? 'article-card article-card--feature'
-                      : isCompact ? 'article-card article-card--compact'
-                      :             'article-card';
+      const cardClass = isFeature ? 'article-card article-card--feature article-card-anim'
+                      : isCompact ? 'article-card article-card--compact article-card-anim'
+                      :             'article-card article-card-anim';
+      const animDelay = `${idx * 0.08}s`;
 
       const transPanel = art.translation_ja
         ? `<div class="translation-panel" id="trans-panel-${idx}">${renderMarkdown(art.translation_ja)}</div>`
         : `<div class="translation-panel" id="trans-panel-${idx}"><p class="translation-unavailable">// 翻訳を取得できませんでした（ペイウォール等）</p></div>`;
 
       return `
-      <article class="${cardClass}">
+      <article class="${cardClass}" style="animation-delay:${animDelay}">
         ${isFeature ? '<div class="article-ribbon" aria-hidden="true">FEATURED</div>' : ''}
         <div class="article-body">
           <div class="article-top">
