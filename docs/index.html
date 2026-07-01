@@ -519,6 +519,27 @@
       transform-origin: center center;
       white-space: nowrap;
       pointer-events: none;
+      overflow: hidden;
+      animation: ribbon-glow 2.4s ease-in-out infinite alternate;
+    }
+    .article-ribbon::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -60%;
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(115deg, transparent, rgba(255,255,255,0.65), transparent);
+      animation: ribbon-shimmer 3.4s ease-in-out infinite;
+    }
+    @keyframes ribbon-glow {
+      from { box-shadow: 0 0 4px rgba(0,255,65,0.35); }
+      to   { box-shadow: 0 0 11px rgba(0,255,65,0.85); }
+    }
+    @keyframes ribbon-shimmer {
+      0%   { left: -60%; }
+      35%  { left: 130%; }
+      100% { left: 130%; }
     }
 
     /* Compact (importance 1-2) */
@@ -564,11 +585,38 @@
       letter-spacing: 0.05em;
     }
     .importance-bar {
-      font-size: 11px;
-      letter-spacing: 0;
-      color: var(--accent);
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
     }
-    .importance-bar .empty-bar { color: var(--sub-light); }
+    .imp-seg {
+      width: 6px;
+      height: 10px;
+      border-radius: 1px;
+      background: var(--sub-light);
+      transform: scaleY(0.25);
+      transform-origin: bottom;
+      opacity: 0;
+    }
+    .imp-seg--filled {
+      background: var(--accent);
+      box-shadow: 0 0 5px var(--accent-mid);
+      animation: imp-seg-grow 0.45s ease both;
+    }
+    .imp-seg--empty { animation: imp-seg-fade 0.45s ease both; }
+    .imp-seg--max { animation: imp-seg-grow 0.45s ease both, imp-seg-pulse 1.8s ease-in-out 0.6s infinite; }
+    @keyframes imp-seg-grow {
+      from { transform: scaleY(0.25); opacity: 0; }
+      to   { transform: scaleY(1); opacity: 1; }
+    }
+    @keyframes imp-seg-fade {
+      from { transform: scaleY(0.25); opacity: 0; }
+      to   { transform: scaleY(1); opacity: 1; }
+    }
+    @keyframes imp-seg-pulse {
+      0%, 100% { box-shadow: 0 0 5px var(--accent-mid); }
+      50%      { box-shadow: 0 0 10px rgba(0,255,65,0.9); }
+    }
 
     .article-title {
       font-size: 16px;
@@ -1500,11 +1548,16 @@
   }
 
   function importanceDots(score) {
-    const filled = '█'.repeat(score);
-    const empty  = '░'.repeat(5 - score);
+    const segs = Array.from({ length: 5 }, (_, i) => {
+      const filled = i < score;
+      const isMax = filled && score >= 5;
+      const cls = filled ? (isMax ? 'imp-seg imp-seg--filled imp-seg--max' : 'imp-seg imp-seg--filled') : 'imp-seg imp-seg--empty';
+      const delay = `${i * 0.07}s`;
+      return `<span class="${cls}" style="animation-delay:${delay}"></span>`;
+    }).join('');
     return `<div class="importance-dots" role="img" aria-label="重要度 ${score}/5">
       <span class="importance-label" aria-hidden="true">重要度</span>
-      <span class="importance-bar" aria-hidden="true"><span>${filled}</span><span class="empty-bar">${empty}</span></span>
+      <span class="importance-bar" aria-hidden="true">${segs}</span>
     </div>`;
   }
 
