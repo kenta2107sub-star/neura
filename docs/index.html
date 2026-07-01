@@ -1180,7 +1180,7 @@
 
     /* ── Responsive ── */
     @media (max-width: 520px) {
-      main { padding: 24px 14px 88px; }
+      main { padding: calc(48px + env(safe-area-inset-top, 0px) + 24px) 14px 88px; }
       .article-card--feature { margin: 0 -14px; padding-right: 14px; }
       .detail-title { font-size: 14px; }
       .article-top { flex-wrap: wrap; }
