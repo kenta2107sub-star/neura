@@ -775,6 +775,10 @@
       from { background: rgba(0,0,0,0.88); }
       to   { background: rgba(0,0,0,0); }
     }
+    @keyframes modal-overlay-in {
+      from { background: rgba(0,0,0,0); }
+      to   { background: rgba(0,0,0,0.88); }
+    }
     .trans-modal {
       display: none;
       position: fixed;
@@ -786,7 +790,7 @@
       padding: 48px 16px 32px;
       overflow: hidden;
     }
-    .trans-modal.open { display: flex; }
+    .trans-modal.open { display: flex; animation: modal-overlay-in 0.22s ease both; }
     .trans-modal.closing { animation: modal-overlay-out 0.2s ease both; }
     .trans-modal-box {
       background: #0D0D0D;
