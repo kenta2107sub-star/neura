@@ -43,6 +43,17 @@ def test_bundled_prompt_has_articles_placeholder():
     assert "{articles}" in cfg["gemini_prompt"]
 
 
+def test_bundled_prompt_has_key_points_instruction():
+    """config.json の gemini_prompt に key_points フィールドの指示が含まれること。"""
+    cfg = config_loader.load_config()
+    assert "key_points" in cfg["gemini_prompt"]
+
+
+def test_default_prompt_has_key_points_instruction():
+    """DEFAULT_GEMINI_PROMPT（フォールバック用）にも key_points の指示が含まれること。"""
+    assert "key_points" in config_loader.DEFAULT_GEMINI_PROMPT
+
+
 def test_migration_run_hour_jst_to_notify_schedules(tmp_path):
     """旧フィールド run_hour_jst が notify_schedules に変換されること。"""
     old_cfg = {"run_hour_jst": 9, "sources": [], "keywords": {"en": [], "ja": []},

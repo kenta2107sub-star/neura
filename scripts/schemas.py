@@ -61,6 +61,7 @@ class Article(TypedDict):
 
     title_ja: str
     summary_ja: str
+    key_points: list[str]  # 最大3件。内容が薄い記事は1〜2件、本文取得不可時は空配列
     translation_ja: Optional[str]
     category: str  # "ニュース" | "研究" | "活用事例" | "ツール"
     importance: int  # 1〜5

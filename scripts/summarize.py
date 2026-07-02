@@ -197,6 +197,10 @@ def main() -> None:
                 "url": types.Schema(type=types.Type.STRING),
                 "title_ja": types.Schema(type=types.Type.STRING),
                 "summary_ja": types.Schema(type=types.Type.STRING),
+                "key_points": types.Schema(
+                    type=types.Type.ARRAY,
+                    items=types.Schema(type=types.Type.STRING),
+                ),
                 "translation_ja": types.Schema(type=types.Type.STRING, nullable=True),
                 "category": types.Schema(
                     type=types.Type.STRING,
@@ -204,7 +208,7 @@ def main() -> None:
                 ),
                 "importance": types.Schema(type=types.Type.INTEGER),
             },
-            required=["url", "title_ja", "summary_ja", "category", "importance"],
+            required=["url", "title_ja", "summary_ja", "key_points", "category", "importance"],
         ),
     )
 

@@ -710,6 +710,32 @@
       gap: 6px;
     }
 
+    .key-points-block {
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border-mid);
+      border-left: 2px solid var(--accent);
+    }
+    .key-points-label {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+    .key-points-list {
+      margin: 0;
+      padding-left: 18px;
+      list-style: disc;
+    }
+    .key-points-list li {
+      font-size: 14px;
+      line-height: 1.7;
+      color: #C8C8C8;
+      margin-bottom: 4px;
+    }
+    .key-points-list li:last-child { margin-bottom: 0; }
+
     .translation-panel h2 {
       font-size: 16px;
       font-weight: 700;
@@ -1574,6 +1600,13 @@
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
+  /* key_points が空配列・未定義（旧データ）の場合は空文字列を返す */
+  function keyPointsBlock(keyPoints) {
+    if (!keyPoints || keyPoints.length === 0) return '';
+    const items = keyPoints.map(p => `<li>${escHtml(p)}</li>`).join('');
+    return `<div class="key-points-block"><p class="key-points-label">💡 この記事が伝えたいこと</p><ul class="key-points-list">${items}</ul></div>`;
+  }
+
   /* ── State ── */
   let currentDate = null;
 
@@ -1839,9 +1872,10 @@
                       :             'article-card article-card-anim';
       const animDelay = `${idx * 0.08}s`;
 
+      const kpBlock = keyPointsBlock(art.key_points);
       const transPanel = art.translation_ja
-        ? `<div class="translation-panel" id="trans-panel-${idx}">${renderMarkdown(art.translation_ja)}</div>`
-        : `<div class="translation-panel" id="trans-panel-${idx}"><p class="translation-unavailable">// 翻訳を取得できませんでした（ペイウォール等）</p></div>`;
+        ? `<div class="translation-panel" id="trans-panel-${idx}">${kpBlock}${renderMarkdown(art.translation_ja)}</div>`
+        : `<div class="translation-panel" id="trans-panel-${idx}">${kpBlock}<p class="translation-unavailable">// 翻訳を取得できませんでした（ペイウォール等）</p></div>`;
 
       return `
       <article class="${cardClass}" style="animation-delay:${animDelay}">
@@ -1945,9 +1979,10 @@
     headerEl.style.display = '';
     resultsEl.innerHTML = hits.map(({ date, art }, idx) => {
       const sid = `sr-trans-${idx}`;
+      const srKpBlock = keyPointsBlock(art.key_points);
       const transPanel = art.translation_ja
-        ? `<div class="translation-panel" id="${sid}">${renderMarkdown(art.translation_ja)}</div>`
-        : `<div class="translation-panel" id="${sid}"><p class="translation-unavailable">// 翻訳を取得できませんでした</p></div>`;
+        ? `<div class="translation-panel" id="${sid}">${srKpBlock}${renderMarkdown(art.translation_ja)}</div>`
+        : `<div class="translation-panel" id="${sid}">${srKpBlock}<p class="translation-unavailable">// 翻訳を取得できませんでした</p></div>`;
 
       const srIsFeature = art.importance >= 5;
       return `
@@ -2038,7 +2073,7 @@
       en: ['ai','llm','gpt','claude','gemini','openai','anthropic','machine learning','deep learning','neural','chatbot','agent','generative'],
       ja: ['AI','LLM','GPT','Claude','Gemini','OpenAI','Anthropic','機械学習','生成AI','チャットボット','エージェント']
     },
-    gemini_prompt: '以下のAI関連記事から、AIを学び始めた一般人でも楽しく読める最大15件を選び、\n各記事について以下の形式でJSON配列を返してください。\n専門的すぎる学術論文より、具体的な活用事例・ツール・わかりやすいニュースを優先してください。\n海外・日本語の両ソースからバランスよく選んでください。\n\n各記事のJSONフィールド：\n- url: 元記事のURLをそのまま返す（変更禁止）\n- title_ja: 日本語タイトル（30文字以内。元が日本語の場合はそのまま使用）\n- summary_ja: 日本語要約（150文字以内。「何がわかった・何ができる・なぜ面白いか」を中心に、AIの専門知識がなくてもわかるように書く）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n- category: "ニュース" | "研究" | "活用事例" | "ツール" のいずれか\n- importance: 1〜5の整数（5が最重要。「AIを学び始めた一般人が読んで面白い・試してみたいと感じるか」で判断）\n\n記事一覧:\n{articles}\n\nJSON配列のみを返してください。',
+    gemini_prompt: '以下のAI関連記事から、AIを学び始めた一般人でも楽しく読める最大15件を選び、\n各記事について以下の形式でJSON配列を返してください。\n専門的すぎる学術論文より、具体的な活用事例・ツール・わかりやすいニュースを優先してください。\n海外・日本語の両ソースからバランスよく選んでください。\n\n各記事のJSONフィールド：\n- url: 元記事のURLをそのまま返す（変更禁止）\n- title_ja: 日本語タイトル（30文字以内。元が日本語の場合はそのまま使用）\n- summary_ja: 日本語要約（150文字以内。「何がわかった・何ができる・なぜ面白いか」を中心に、AIの専門知識がなくてもわかるように書く）\n- key_points: この記事が伝えたいことを最大3つ、日本語の配列で返す（各項目40文字以内。内容が薄い記事は1〜2件でも可。本文取得不可の場合は空配列 []）\n- translation_ja: 記事本文の全文日本語翻訳（markdown形式）\n- category: "ニュース" | "研究" | "活用事例" | "ツール" のいずれか\n- importance: 1〜5の整数（5が最重要。「AIを学び始めた一般人が読んで面白い・試してみたいと感じるか」で判断）\n\n記事一覧:\n{articles}\n\nJSON配列のみを返してください。',
     notify_schedules: [
       { hour: 13, enabled: true,  max_articles: 5, genres: { 'ニュース': false, '研究': false, '活用事例': true, 'ツール': true } },
       { hour: 19, enabled: true,  max_articles: 5, genres: { 'ニュース': true,  '研究': false, '活用事例': false, 'ツール': false } },
