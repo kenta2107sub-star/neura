@@ -216,8 +216,11 @@ def main() -> None:
     print(f"[INFO]  summarize: スロット hour={slot.get('hour','?')} 有効ジャンル={enabled_genres} max={slot_max}")
 
     # ── Stage 1: タイトル＋冒頭文で選定（有効ジャンルを誘導） ────────────────
-    print(f"[INFO]  summarize: Stage 1 選定（{len(articles)}件 → 最大{SELECT_MAX}件）")
-    sel_text = _call_gemini(client, build_selection_prompt(articles, genres=slot_genres), types)
+    # Stage 2 の応答が長くなりすぎて途中で切れるのを防ぐため、
+    # スロットの max_articles に近い件数だけを選ぶ（フィルタ・重複除去の余裕分のみ+3）
+    select_n = min(SELECT_MAX, slot_max + 3)
+    print(f"[INFO]  summarize: Stage 1 選定（{len(articles)}件 → 最大{select_n}件）")
+    sel_text = _call_gemini(client, build_selection_prompt(articles, n=select_n, genres=slot_genres), types)
     try:
         selected_urls: list[str] = json.loads(sel_text)
         if not isinstance(selected_urls, list):
