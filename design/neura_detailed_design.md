@@ -523,6 +523,12 @@ def matches_ai_keyword(title: str, source: str, keywords: dict) -> bool:
 | `BODY_MAX_CHARS_TRANSLATE` | 3000 | Stage 2 翻訳用の本文上限文字数 |
 | `SELECT_MAX` | 10 | Stage 1 で選ぶ件数の上限 |
 
+Stage 1 で実際に選ぶ件数（`select_n`）はスロットの `max_articles`（`slot_max`）を基準に
+`select_n = min(SELECT_MAX, slot_max + 5)` で決める。Stage 2 でのカテゴリ判定・重複除去により
+一部が有効ジャンル外として弾かれるため、`slot_max` ちょうどではなく余裕（バッファ）を持たせる。
+バッファは「Stage 2 応答が長くなりすぎて途中で切れる（JSON parse失敗）リスク」とのトレードオフのため、
+`SELECT_MAX`（＝これまで実運用で問題なく処理できていた上限）を超えないようにキャップする。
+
 #### 処理フロー
 
 ```python
@@ -557,7 +563,12 @@ def main():
 
     # ── Stage 1: タイトル＋冒頭700文字で選定 ─────────────────────────
     # 入力: 最大20件 × 700文字 ≒ 14,000文字（旧: 30件 × 3,000文字 ≒ 90,000文字）
-    sel_text = _call_gemini(client, build_selection_prompt(articles), types)
+    # スロットの有効ジャンルに該当する記事のみを選ぶよう Stage 1 プロンプトで明示的に指示する
+    # （「優先」ではなく「該当する記事のみ」というハード制約。Stage 2 のジャンルフィルタで
+    # 想定外に弾かれる件数を減らすため）
+    slot_max = max(1, min(10, int(slot.get("max_articles", MAX_ARTICLES))))
+    select_n = min(SELECT_MAX, slot_max + 5)
+    sel_text = _call_gemini(client, build_selection_prompt(articles, n=select_n, genres=slot_genres), types)
     selected_urls = json.loads(sel_text)  # ["https://...", ...]
     selected = [a for a in articles if normalize_url(a["url"]) in url_set]
     # パース失敗・0件時は全件をフォールバック
@@ -662,8 +673,13 @@ def normalize_category(cat: str | None) -> str:
 
 #### Stage 1 選定プロンプト（`SELECTION_PROMPT`）
 
+`{genres}` にはスロットで有効なジャンルのみを渡す。「優先」という弱い表現ではなく、
+該当ジャンル**のみ**を選ぶよう明示的に制約する（無効ジャンルの記事が選ばれてStage 2後に
+弾かれる＝件数不足になる事態を防ぐため）。
+
 ```
 以下のAI関連記事から、AIを学び始めた一般人が「面白い・試してみたい」と感じる記事を最大{n}件選んでください。
+次のジャンルに該当する記事のみを選んでください（それ以外のジャンルの記事は選ばないでください）: {genres}
 選んだ記事のURLだけをJSON配列（文字列のリスト）で返してください。
 
 記事一覧:

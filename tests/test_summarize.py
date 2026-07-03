@@ -104,6 +104,70 @@ def test_build_selection_prompt_handles_null_body():
     assert "（本文取得不可）" in prompt
 
 
+def test_build_selection_prompt_hard_constrains_to_enabled_genres():
+    """無効ジャンルの記事も選ばれてStage2後に弾かれる（通知件数不足）事態を防ぐため、
+    Stage1プロンプトは「優先」ではなく「該当する記事のみ」という強い制約であること。"""
+    arts = [_collected()]
+    genres = {"ニュース": True, "研究": False, "活用事例": False, "ツール": False}
+    prompt = summarize.build_selection_prompt(arts, genres=genres)
+    assert "のみを選んでください" in prompt
+    assert "優先して選んでください" not in prompt
+    assert "ニュース" in prompt
+    assert "研究" not in prompt  # 無効ジャンルはgenres_textに含まれない
+
+
+def test_main_stage1_select_n_buffers_slot_max_capped_at_select_max(tmp_path, monkeypatch):
+    """select_n = min(SELECT_MAX, slot_max + 5) であること（狭いジャンル設定でも
+    5件通知が3件に目減りした障害の再発防止）。"""
+    import json as json_mod
+    import sys
+    from types import ModuleType
+    from unittest.mock import MagicMock
+
+    collected = [
+        {"title": f"t{i}", "url": f"https://x.com/{i}", "source": "RSS", "score": 0,
+         "published_at": "2026-06-18T00:00:00Z", "body_text": "本文"}
+        for i in range(20)
+    ]
+    collected_path = tmp_path / "collected.json"
+    collected_path.write_text(json_mod.dumps(collected), encoding="utf-8")
+    output_path = tmp_path / "out.json"
+    monkeypatch.setattr(summarize, "INPUT_PATH", str(collected_path))
+    monkeypatch.setattr(summarize, "OUTPUT_PATH", str(output_path))
+    monkeypatch.setenv("GEMINI_API_KEY", "dummy")
+
+    config_narrow_genres = {
+        **config_loader.DEFAULT_CONFIG,
+        "notify_schedules": [{"hour": 0, "enabled": True, "max_articles": 5,
+                               "genres": {"ニュース": True, "研究": False,
+                                          "活用事例": False, "ツール": False}}],
+    }
+
+    mock_google = ModuleType("google")
+    mock_genai = ModuleType("google.genai")
+    mock_types = MagicMock()
+    mock_genai.Client = MagicMock(return_value=MagicMock())
+    mock_google.genai = mock_genai
+    monkeypatch.setitem(sys.modules, "google", mock_google)
+    monkeypatch.setitem(sys.modules, "google.genai", mock_genai)
+    monkeypatch.setitem(sys.modules, "google.genai.types", mock_types)
+
+    gemini_result = [
+        {"url": "https://x.com/0", "title_ja": "タイトル", "summary_ja": "要約",
+         "key_points": [], "translation_ja": None, "category": "ニュース", "importance": 5},
+    ]
+    stage1_urls = json_mod.dumps(["https://x.com/0"])
+
+    with patch("summarize.load_config", return_value=config_narrow_genres), \
+         patch("summarize._call_gemini", return_value=stage1_urls) as mock_stage1, \
+         patch("summarize._call_gemini_json", return_value=gemini_result):
+        summarize.main()
+
+    stage1_prompt = mock_stage1.call_args[0][1]
+    assert "最大10件" in stage1_prompt  # min(SELECT_MAX=10, slot_max(5) + 5)
+    assert "のみを選んでください" in stage1_prompt
+
+
 def _slot(hour, enabled=True):
     return {"hour": hour, "enabled": enabled, "max_articles": 10,
             "genres": {"ニュース": True}}

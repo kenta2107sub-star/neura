@@ -46,7 +46,7 @@ CATEGORY_NORM: dict[str, str] = {
 
 SELECTION_PROMPT = (
     "以下のAI関連記事から、AIを学び始めた一般人が「面白い・試してみたい」と感じる記事を最大{n}件選んでください。\n"
-    "優先するカテゴリ（このカテゴリに該当する記事を優先して選んでください）: {genres}\n"
+    "次のジャンルに該当する記事のみを選んでください（それ以外のジャンルの記事は選ばないでください）: {genres}\n"
     "選んだ記事のURLだけをJSON配列（文字列のリスト）で返してください。\n\n"
     "記事一覧:\n"
     "{articles}\n\n"
@@ -219,10 +219,10 @@ def main() -> None:
     enabled_genres = sorted(g for g, on in slot_genres.items() if on)
     print(f"[INFO]  summarize: スロット hour={slot.get('hour','?')} 有効ジャンル={enabled_genres} max={slot_max}")
 
-    # ── Stage 1: タイトル＋冒頭文で選定（有効ジャンルを誘導） ────────────────
+    # ── Stage 1: タイトル＋冒頭文で選定（有効ジャンルをハード制約として指示） ─────
     # Stage 2 の応答が長くなりすぎて途中で切れるのを防ぐため、
-    # スロットの max_articles に近い件数だけを選ぶ（フィルタ・重複除去の余裕分のみ+3）
-    select_n = min(SELECT_MAX, slot_max + 3)
+    # スロットの max_articles に近い件数だけを選ぶ（ジャンル誤判定・重複除去の余裕分として+5、SELECT_MAXでキャップ）
+    select_n = min(SELECT_MAX, slot_max + 5)
     print(f"[INFO]  summarize: Stage 1 選定（{len(articles)}件 → 最大{select_n}件）")
     sel_text = _call_gemini(client, build_selection_prompt(articles, n=select_n, genres=slot_genres), types)
     try:
