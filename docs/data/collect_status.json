@@ -1,9 +1,9 @@
 {
-  "run_at": "2026-07-03T04:00:53Z",
+  "run_at": "2026-07-03T10:00:55Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
-      "count": 99
+      "count": 98
     },
     "Reddit r/artificial": {
       "status": "ok",
@@ -31,7 +31,7 @@
     },
     "はてなブックマーク IT": {
       "status": "ok",
-      "count": 16
+      "count": 18
     },
     "Qiita AI": {
       "status": "ok",
