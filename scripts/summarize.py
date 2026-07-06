@@ -47,6 +47,8 @@ CATEGORY_NORM: dict[str, str] = {
 SELECTION_PROMPT = (
     "以下のAI関連記事から、AIを学び始めた一般人が「面白い・試してみたい」と感じる記事を最大{n}件選んでください。\n"
     "次のジャンルに該当する記事のみを選んでください（それ以外のジャンルの記事は選ばないでください）: {genres}\n"
+    "後工程で数件が除外される可能性があるため、該当ジャンルの記事が複数あるなら少なめに絞らず、"
+    "{n}件に近づくよう可能な限り多く選んでください。\n"
     "選んだ記事のURLだけをJSON配列（文字列のリスト）で返してください。\n\n"
     "記事一覧:\n"
     "{articles}\n\n"
@@ -238,11 +240,27 @@ def main() -> None:
     if not selected:
         print("[WARN]  summarize: Stage 1 の選定結果が0件 → 全件を Stage 2 へ")
         selected = articles
+    if len(selected) > select_n:
+        # Gemini が上限指示を無視した場合の保険（Stage 2 応答の途中切れを防ぐ）
+        print(f"[WARN]  summarize: Stage 1 が上限{select_n}件を超過（{len(selected)}件） → {select_n}件に切り詰め")
+        selected = selected[:select_n]
     print(f"[INFO]  summarize: Stage 1 完了 → {len(selected)}件選定")
 
     # ── Stage 2: 選定記事を翻訳・要約 ────────────────────────────────
     print(f"[INFO]  summarize: Stage 2 翻訳・要約（{len(selected)}件）")
     result = _call_gemini_json(client, build_prompt(selected, config["gemini_prompt"]), types, response_schema=article_schema)
+
+    # Geminiが改行を過剰エスケープし、JSON文字列内に本物の改行ではなく
+    # リテラルな "\n"（バックスラッシュ+n の2文字）を返すことがあるため補正する
+    for r in result:
+        for field in ("title_ja", "summary_ja", "translation_ja"):
+            if isinstance(r.get(field), str):
+                r[field] = r[field].replace("\\n", "\n")
+        if isinstance(r.get("key_points"), list):
+            r["key_points"] = [
+                kp.replace("\\n", "\n") if isinstance(kp, str) else kp
+                for kp in r["key_points"]
+            ]
 
     # カテゴリ正規化（Geminiが英語や日本語バリエーションを返す場合に備える）
     raw_cats = [r.get("category") for r in result]
