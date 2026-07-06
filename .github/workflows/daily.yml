@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write        # git push のために必要
+      actions: write         # Pages デプロイ失敗時の再実行トリガーに必要
 
     steps:
       - name: Checkout
@@ -42,3 +43,35 @@ jobs:
       - name: Archive to GitHub Pages (FR-04)
         run: python scripts/archive.py
         # GITHUB_TOKEN はcheckout時に自動設定されるため env: 不要
+
+      - name: Retry Pages deployment if it fails
+        # archive.py の push が GitHub 側の "pages build and deployment" を起動するが、
+        # そのデプロイがGitHub側の一時的なエラーで失敗することがあるため監視・自動リトライする
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "Watching Pages deployment for commit $SHA"
+          for i in $(seq 1 12); do
+            sleep 15
+            RUN_ID=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=$SHA" --jq '.workflow_runs[] | select(.name=="pages build and deployment") | .id' 2>/dev/null | head -1 || true)
+            if [ -z "$RUN_ID" ]; then
+              echo "[$i] Pages run not created yet, waiting..."
+              continue
+            fi
+            STATUS=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.status' 2>/dev/null || echo "")
+            CONCLUSION=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.conclusion // empty' 2>/dev/null || echo "")
+            echo "[$i] run_id=$RUN_ID status=$STATUS conclusion=$CONCLUSION"
+            if [ "$STATUS" != "completed" ]; then
+              continue
+            fi
+            if [ "$CONCLUSION" = "success" ]; then
+              echo "Pages deployment succeeded"
+              exit 0
+            fi
+            echo "Pages deployment failed (conclusion=$CONCLUSION) → requesting rerun"
+            gh api -X POST "repos/${{ github.repository }}/actions/runs/$RUN_ID/rerun-failed-jobs" 2>/dev/null || true
+            sleep 20
+          done
+          echo "::warning::Pages deployment did not confirm success within the polling window"
