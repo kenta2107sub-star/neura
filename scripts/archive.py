@@ -58,18 +58,34 @@ def update_index(index: dict, meta: dict) -> dict:
 
 
 def run_git_commands(today: str) -> None:
-    commands = [
+    commit_commands = [
         ["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"],
         ["git", "config", "user.name", "github-actions[bot]"],
         ["git", "add", "docs/data/"],
         ["git", "commit", "-m", f"chore: add daily digest {today}"],
-        ["git", "push"],
     ]
-    for cmd in commands:
+    for cmd in commit_commands:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             print(f"[ERROR] Git command failed: {' '.join(cmd)}")
             print(result.stderr)
+            sys.exit(1)
+
+    # push が non-fast-forward で失敗した場合（設定画面が同タイミングで
+    # config/config.json を更新した等）、pull --rebase 後に1回だけ再試行する
+    push = subprocess.run(["git", "push"], capture_output=True, text=True)
+    if push.returncode != 0:
+        print("[WARN]  archive: git push 失敗（non-fast-forward の可能性）→ git pull --rebase 後に1回だけ再試行")
+        print(push.stderr)
+        rebase = subprocess.run(["git", "pull", "--rebase"], capture_output=True, text=True)
+        if rebase.returncode != 0:
+            print("[ERROR] Git command failed: git pull --rebase")
+            print(rebase.stderr)
+            sys.exit(1)
+        retry = subprocess.run(["git", "push"], capture_output=True, text=True)
+        if retry.returncode != 0:
+            print("[ERROR] Git command failed: git push (retry)")
+            print(retry.stderr)
             sys.exit(1)
 
 

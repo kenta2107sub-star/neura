@@ -587,6 +587,32 @@ def main():
     # → source/published_at を元記事から復元 → /tmp/neura_summarized.json に保存
 ```
 
+#### 件数不足時のバックフィル
+
+Stage 1のプロンプト指示（該当ジャンルのみ・絞りすぎない）だけでは、Gemini側の
+選定漏れやStage 2での再分類により `slot_max` に届かないことがある
+（例：2026-07-03・07-06・07-08 に実際に発生）。プロンプト調整のみでは解決しなかったため、
+コード側で決定的に補うバックフィルを行う。
+
+```
+if len(result_sorted) < slot_max:
+    tried_urls = 既にStage1で選定試行した記事のURL集合
+    remaining = articles のうち tried_urls に含まれないもの（＝まだ試していない収集記事）
+    shortfall = slot_max - len(result_sorted)
+    if remaining:
+        backfill_n = min(SELECT_MAX, shortfall + 5, len(remaining))
+        # remaining だけを対象に Stage 1 選定プロンプトを再実行
+        backfill_selected = build_selection_prompt(remaining, n=backfill_n, genres=slot_genres) → Gemini → URL照合
+        if backfill_selected:
+            # Stage 2 と同じ翻訳・要約・改行補正・カテゴリ正規化を行い、
+            # 既存 result に重複除去しつつ追加
+            result_sorted = select_articles(result, slot_genres, slot_max)  # 再計算
+```
+
+バックフィルは最大1回のみ（無限ループ防止）。`remaining` が空、またはバックフィルの
+Stage 1選定結果が0件の場合はそのまま既存の `result_sorted` を採用する
+（Gemini APIコール回数の上限は通常時2回・不足時最大4回）。
+
 #### `_call_gemini` ヘルパー（APIリトライ共通化）
 
 API例外のみリトライ対象。JSONパース失敗はリトライしない（→ `_call_gemini_json` を使う）。
@@ -919,18 +945,34 @@ def main():
     run_git_commands(today)
 
 def run_git_commands(today: str):
-    commands = [
+    commit_commands = [
         ["git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"],
         ["git", "config", "user.name", "github-actions[bot]"],
         ["git", "add", "docs/data/"],
         ["git", "commit", "-m", f"chore: add daily digest {today}"],
-        ["git", "push"],
     ]
-    for cmd in commands:
+    for cmd in commit_commands:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
             print(f"[ERROR] Git command failed: {' '.join(cmd)}")
             print(result.stderr)
+            sys.exit(1)
+
+    # push が non-fast-forward で失敗した場合（設定画面が同タイミングで
+    # config/config.json を更新した等）、pull --rebase 後に1回だけ再試行する
+    push = subprocess.run(["git", "push"], capture_output=True, text=True)
+    if push.returncode != 0:
+        print("[WARN]  archive: git push 失敗（non-fast-forward の可能性）→ git pull --rebase 後に1回だけ再試行")
+        print(push.stderr)
+        rebase = subprocess.run(["git", "pull", "--rebase"], capture_output=True, text=True)
+        if rebase.returncode != 0:
+            print("[ERROR] Git command failed: git pull --rebase")
+            print(rebase.stderr)
+            sys.exit(1)
+        retry = subprocess.run(["git", "push"], capture_output=True, text=True)
+        if retry.returncode != 0:
+            print("[ERROR] Git command failed: git push (retry)")
+            print(retry.stderr)
             sys.exit(1)
 ```
 
@@ -939,7 +981,7 @@ def run_git_commands(today: str):
 | 状況 | 挙動 |
 |---|---|
 | `git commit` 失敗 | `[ERROR] Git command failed` をログ出力してexit(1) |
-| `git push` が non-fast-forward で失敗 | 設定画面（FR-06）が同タイミングで `config/config.json` を更新した場合に発生し得る。`[ERROR]` をログ出力してexit(1)。次回の定時実行で再試行される（実装で `git pull --rebase` 後に再pushを1回試みてもよい） |
+| `git push` が non-fast-forward で失敗 | 設定画面（FR-06）が同タイミングで `config/config.json` を更新した場合に発生し得る。`[WARN]` をログ出力し `git pull --rebase` 後に1回だけ再push を試みる。それでも失敗する場合（rebase自体の失敗含む）は `[ERROR]` をログ出力してexit(1) |
 
 ---
 

@@ -1,5 +1,7 @@
 """FR-04：archive の index.json 更新ロジックの単体テスト。"""
 
+from unittest.mock import MagicMock, patch
+
 import archive
 
 
@@ -48,3 +50,45 @@ def test_update_index_caps_at_100():
     out = archive.update_index(index, meta)
     assert len(out["digests"]) == 100
     assert out["digests"][0]["date"] == "2026-06-18"
+
+
+def _proc(returncode=0, stderr=""):
+    return MagicMock(returncode=returncode, stderr=stderr)
+
+
+def test_run_git_commands_push_succeeds_without_retry():
+    """通常時：push が一発で成功すれば pull --rebase は呼ばれない。"""
+    with patch("archive.subprocess.run", return_value=_proc(0)) as mock_run:
+        archive.run_git_commands("2026-07-08")
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    assert ["git", "push"] in calls
+    assert ["git", "pull", "--rebase"] not in calls
+
+
+def test_run_git_commands_retries_push_after_rebase_on_non_fast_forward():
+    """push が non-fast-forward で失敗しても、pull --rebase 後の再pushが成功すれば正常終了する。"""
+    # config x2, add, commit succeed → push fails → pull --rebase succeeds → push(retry) succeeds
+    results = [_proc(0), _proc(0), _proc(0), _proc(0), _proc(1, "rejected"), _proc(0), _proc(0)]
+    with patch("archive.subprocess.run", side_effect=results) as mock_run:
+        archive.run_git_commands("2026-07-08")  # sys.exit を呼ばずに正常終了すること
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    assert calls.count(["git", "push"]) == 2
+    assert ["git", "pull", "--rebase"] in calls
+
+
+def test_run_git_commands_exits_when_rebase_fails():
+    import pytest
+    results = [_proc(0), _proc(0), _proc(0), _proc(0), _proc(1, "rejected"), _proc(1, "conflict")]
+    with patch("archive.subprocess.run", side_effect=results):
+        with pytest.raises(SystemExit) as exc:
+            archive.run_git_commands("2026-07-08")
+    assert exc.value.code == 1
+
+
+def test_run_git_commands_exits_when_retry_push_also_fails():
+    import pytest
+    results = [_proc(0), _proc(0), _proc(0), _proc(0), _proc(1, "rejected"), _proc(0), _proc(1, "rejected again")]
+    with patch("archive.subprocess.run", side_effect=results):
+        with pytest.raises(SystemExit) as exc:
+            archive.run_git_commands("2026-07-08")
+    assert exc.value.code == 1

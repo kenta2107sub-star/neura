@@ -282,11 +282,56 @@ def main() -> None:
 
     # FR-06：無効カテゴリ（genres=false）を除外してから重要度上位を選定する
     result_sorted = select_articles(result, slot_genres, slot_max)
+
+    # プロンプト指示（該当ジャンルのみ・絞りすぎない）だけでは目標件数に届かないことがあるため、
+    # 未使用の収集記事が残っていれば不足分だけ追加で選定・翻訳して1回だけ補充する
+    if len(result_sorted) < slot_max:
+        tried_urls = {normalize_url(a["url"]) for a in selected}
+        remaining = [a for a in articles if normalize_url(a["url"]) not in tried_urls]
+        shortfall = slot_max - len(result_sorted)
+        if remaining:
+            backfill_n = min(SELECT_MAX, shortfall + 5, len(remaining))
+            print(f"[INFO]  summarize: 件数不足（あと{shortfall}件）→ 残り{len(remaining)}件から{backfill_n}件を追加選定")
+            backfill_sel_text = _call_gemini(client, build_selection_prompt(remaining, n=backfill_n, genres=slot_genres), types)
+            try:
+                backfill_urls: list[str] = json.loads(backfill_sel_text)
+                if not isinstance(backfill_urls, list):
+                    raise ValueError("not a list")
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"[WARN]  summarize: 追加選定のパース失敗 → 補充をスキップ ({e})")
+                backfill_urls = []
+
+            backfill_url_set = {normalize_url(u) for u in backfill_urls if isinstance(u, str)}
+            backfill_selected = [a for a in remaining if normalize_url(a["url"]) in backfill_url_set][:backfill_n]
+
+            if backfill_selected:
+                print(f"[INFO]  summarize: 追加選定 → {len(backfill_selected)}件を翻訳・要約")
+                backfill_result = _call_gemini_json(
+                    client, build_prompt(backfill_selected, config["gemini_prompt"]), types, response_schema=article_schema
+                )
+                for r in backfill_result:
+                    for field in ("title_ja", "summary_ja", "translation_ja"):
+                        if isinstance(r.get(field), str):
+                            r[field] = r[field].replace("\\n", "\n")
+                    if isinstance(r.get("key_points"), list):
+                        r["key_points"] = [
+                            kp.replace("\\n", "\n") if isinstance(kp, str) else kp
+                            for kp in r["key_points"]
+                        ]
+                    r["category"] = normalize_category(r.get("category"))
+                    key = normalize_url(r.get("url", ""))
+                    if key and key not in seen_urls:
+                        seen_urls.add(key)
+                        result.append(r)
+
+                result_sorted = select_articles(result, slot_genres, slot_max)
+                print(f"[INFO]  summarize: 補充後 → {len(result_sorted)}件選出")
+
     if not result_sorted:
         print("[ERROR] summarize: 有効カテゴリの記事が0件（genres設定を確認）")
         sys.exit(1)
 
-    if len(result_sorted) < 5:
+    if len(result_sorted) < slot_max:
         print(f"[WARN]  summarize: Only {len(result_sorted)} articles selected")
 
     # 元記事の source / published_at を URL 照合で復元する
