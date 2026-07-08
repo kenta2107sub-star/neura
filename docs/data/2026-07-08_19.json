@@ -1,0 +1,82 @@
+{
+  "date": "2026-07-08",
+  "time": "19:00",
+  "generated_at": "2026-07-08T10:03:10Z",
+  "articles": [
+    {
+      "url": "https://twitter.com/OpenAI/status/2074704958419792299",
+      "title_ja": "GPT-5.6 Sol、今週木曜公開",
+      "summary_ja": "OpenAIが、最新AIモデル「GPT-5.6 Sol」と「Terra」「Luna」を今週木曜日に一般公開すると発表。現在、プレビューアクセスを世界中に拡大中。AI技術の進化を示す重要なニュース。",
+      "key_points": [
+        "OpenAIがGPT-5.6 Solを発表",
+        "TerraとLunaも同時公開",
+        "今週木曜日に一般利用開始"
+      ],
+      "translation_ja": "GPT-5.6 Solは、TerraおよびLunaとともに、今週木曜日に一般公開されます。現在、プレビューアクセスを世界中に拡大しています。",
+      "category": "ニュース",
+      "importance": 5,
+      "source": "HackerNews",
+      "published_at": "2026-07-08T04:12:13Z"
+    },
+    {
+      "url": "https://zenn.dev/knowledgesense/articles/283244af941a2d",
+      "title_ja": "Fable時代のAI活用法",
+      "summary_ja": "Anthropicの開発者が、最新AI「Fable」を使いこなすためのテクニックを公開。AIへの指示の質が重要で、人間が認識する「地図」とAIが理解する「現地」のギャップを埋めるため、「未知」を減らす方法を解説。実装前後の具体的な手法も紹介する。",
+      "key_points": [
+        "AIへの指示の「未知」を減らす",
+        "ブラインドスポット・パスで盲点発見",
+        "プロトタイプやインタビューで具体化"
+      ],
+      "translation_ja": "Fable時代のAI活用法を、Anthropicの開発者が公開本記事では、最新のAIエージェントを使いこなすためのテクニックについて、ざっくり理解します。株式会社ナレッジセンスは、生成AIやRAGを使ったプロダクトを、エンタープライズ企業向けに開発しているスタートアップです。この記事は何この記事は、「FableレベルのAIを使いこなすため」のガイド記事[1]について、日本語で簡単にまとめたものです。本題ざっくりサマリー『A Field Guide to Fable』は、「Fable 5」レベルのAIを使いこなすための、新しいテクニック集です。 「Claude Code」の開発者であるThariq氏によって、2026年7月に公開されました。Thariq氏によると、「Fable」世代は非常に賢いので、「人間側の指示の品質」がボトルネックになる「初めてのモデル」とのことです。そしてこの記事では、「地図は現地ではない」（The map is not the territory） という、キラーフレーズが登場します[2]。どういうことかというと、人間が「こんな感じでよろしく」とAIに投げる指示（地図）と、Fableが実際に理解する指示の受け取り方・修正対象のファイルの中身（現地）には、結構ギャップがあるよ、ということです。AIエージェントは、こういうギャップにぶつかるたびに「人間はこう望んでいるはず」という推測で作業をします。任せる仕事が大きくなるほど、AIがぶつかるギャップも増えます。ギャップが増えるほど、タスクの失敗も増えます。問題意識AIへの指示は、具体的すぎても、曖昧すぎても失敗します。- 具体的すぎ… 本来は方針転換すべき場面でも、Claudeは指示に従い続けてしまう- 曖昧すぎ… Claudeは「業界のベストプラクティス」で穴埋めするが、それが今回のタスクに合うかは別問題Thariq氏は、「地図」と「現地」のズレを「未知（unknowns）」と呼んでおり、未知を解消するためには、Claudeにタスクを依頼する前に、問題を4つに分解すべきだと伝えています。- 既知の既知… 自分が理解していて、プロンプトに明示できていること- 既知の未知… 「ここは分かっていない」と自覚できている領域- 未知の既知… 自分の中に判断基準はあるのに、当たり前すぎて言語化していないこと（見せられれば「こっちの方が良い」と言えること）- 未知の未知… 分かっていないことすら自覚できていないこと（コードベースの落とし穴、ドメイン知識の不足など）ハイレベルなAIエージェント使いに求められるのは、この「未知」を少なくすることです。結局、AIが進化しても、コードベースとモデルの挙動、両方の理解が求められるということですね。「未知を減らし、未知に備えること」こそが、エージェント時代に必要なコアスキルになってきます。手法著者は、「実装前」「実装中」「実装後」の3フェーズに分けて、未知を発見するテクニックを紹介しています。【実装前】- ブラインドスポット・パス- 「未知の未知」を洗い出すために、Claude自身に自分の盲点を探させる- プロンプトには \"blindspot pass\" や \"unknown unknowns\" という単語を、そのまま使うのがおすすめとのこと- 例：「このコードベースの認証まわりは何も知りません。ブラインドスポット・パスをして、良いプロンプトを書けるように助けてください」- ブレストとプロトタイプ- 「見れば分かるが、言語化できない」タイプの未知（未知の既知）に有効- 例：「4方向の全く違うデザイン案をHTML1枚で見せて。コメントします」- 実装が始まってから仕様変更するのは（相対的に）高コストなので、安いうちに潰しておく- インタビュー- Claudeに、自分へ質問させる- 例：「曖昧な点について1問ずつインタビューして。回答次第でアーキテクチャが変わる質問を優先して」- リファレンス- 言葉で説明できないなら、参照物を渡す。最強のリファレンスはソースコード- 例：「vendor/rate-limiter のRustクレートが理想のバックオフ挙動。読んで、同じセマンティクスをTypeScriptで再実装して」- 実装計画- 実装前にプランをレビューする。ただし、変更が入りそうな部分（データモデル、型定義、UX）を先頭に置かせるのがポイント【実装中】- 実装ノート- どれだけ計画しても、未知の未知は残る- ので、implementation-notes.md を作らせて、計画から逸脱した判断を「Deviations」としてログさせていく。（作業は止めずに続行させる）【実装後】- ピッチ・説明資料- プロトタイプ、仕様書、実装ノートを1つの資料にまとめさせて、レビュアーが承認しやすくする- クイズ- 最終的に、Claudeに変更内容のクイズを出させる。自分が全問正解できるまでマージしない実例：Fableのローンチ動画- 著者は、Fableの公式ローンチ動画の編集を、全てClaude Codeで行ったそうです。動画編集は著者にとって未経験の領域でした。- そこで著者は、最初にClaudeから「Whisperによる文字起こしの仕組み」を教わり、ffmpegで「えー」や長い間をカットできるか確認。次に、Remotionでプロトタイプ動画を作らせて、字幕UIが実現可能かを検証しました。- 面白いのはカラーグレーディング（色調補正）の話です。最初は「数パターン作らせて選ぶ」方式を試したものの、そもそも自分が「良いグレーディング」の判断基準を持っていないことに気づきます。そこで方針転換し、Claudeにカラーグレーディングそのものを教わることで、自分の未知を発見してから作業に戻ったそうです。ここまでの内容を使えるスキルを実装しましたThariq氏のテクニックを手元で利用できるようにするために、スキル化として実装しました。実装したスキルは以下です。例えば SKILL.md 全文---name: unknowns-field-guidedescription: Use before writing code for ambiguous, unfamiliar, multi-step, or reviewer-sensitive implementation work. Runs a blindspot pass for unknown unknowns, explores prototypes and references, plans likely-to-change decisions first, logs deviations, explains the result, and quizzes understanding.---# Unknowns Field Guide## PurposeUse this skill to make hidden assumptions visible before they become expensive. The core model is simple: the prompt, plan, and artifacts are the map; the real codebase, users, constraints, and reviewers are the territory; unknowns are the gaps between them.Use it before implementation, not only after things go wrong. If the work is small and clear, run a light pass. If it is ambiguous, unfamiliar, visible to users, or likely to involve review, run the full pass.## UnknownsClassify uncertainty into four groups:- Known Knowns: what the prompt, issue, spec, or provided artifact already says.- Known Unknowns: questions the user or agent can already name.- Unknown Knowns: preferences or quality bars the user can recognize only after seeing concrete options.- Unknown Unknowns: constraints, prior art, failure modes, or standards the user has not considered.Use the literal phrases \"blindspot pass\" and \"unknown unknowns\" when the goal is to find hidden constraints.Calibrate instruction detail. Overly specific instructions can prevent a needed pivot; vague instructions can lead to generic choices that do not fit the actual system.## Before Implementation1. Start with a blindspot pass. Search the relevant code, docs, tests, issues, logs, examples, and public sources. List Unknown Unknown candidates and the evidence needed to resolve them.2. Brainstorm or prototype when the user will know the target only after seeing options. Prefer cheap artifacts: HTML mockups, screenshots, fake-data prototypes, diagrams, or sample payloads.3. Interview when Known Unknowns remain. Ask one question at a time, prioritizing answers that would change architecture, data shape, security, UX, scope, cost, or review strategy.4. Use references when the user cannot describe the target precisely. Source code is the strongest reference; read it directly and reuse the semantics even if it is written in another language.5. Write an implementation plan. Lead with decisions likely to change: data models, interfaces, UX, permissions, ",
+      "category": "研究",
+      "importance": 4,
+      "source": "HatenaBookmark",
+      "published_at": "2026-07-07T05:01:55Z"
+    },
+    {
+      "url": "https://noma.security/blog/gitlost-how-we-tricked-githubs-ai-agent-into-leaking-private-repos/",
+      "title_ja": "GitHub AIがプライベート情報漏洩",
+      "summary_ja": "GitHubのAIエージェントにプロンプトインジェクション脆弱性「GitLost」が発見された。攻撃者が公開リポジトリに巧妙なIssueを投稿することで、同じ組織のプライベートリポジトリからデータを盗み出せる可能性がある。AIシステムのセキュリティ課題を浮き彫りにする。",
+      "key_points": [
+        "GitHub AIエージェントに脆弱性",
+        "プロンプトインジェクションで情報漏洩",
+        "AIシステムのセキュリティ課題を提示"
+      ],
+      "translation_ja": "## AIと暗号学の出会い 1: AIがCloudflareのCIRCLで発見したもの私たちはAI監査パイプラインをCloudflareの実験的暗号ライブラリ**CIRCL**に向け、**閾値RSA**における重大な`float64`精度損失から、**属性ベース暗号**における完全なアクセス制御の破綻まで、7つの実際のバグを確認しました。これら7つはすべて上流で修正済みです。これは、私たちのエージェントがオープンソース暗号学全体で発見したバグに関するシリーズの最初の投稿です。zkSecurityでは、AI監査エージェント**zkao**を構築しています。目標は単純に述べられますが、実行は困難です。他のAIツールがバグを見つけられなくなるまで、AIに継続的にコードを監視させ続けることです。私たちは、そのアプローチがなぜ重要なのかについて「[zkao: Security That Compounds](https://blog.zksecurity.xyz/posts/zkao-security-that-compounds/)」で書きました。zkaoの構築は反復的なプロセスであり、AIによって検出可能なすべてのバグを発見できる自動監査人を創出するという最終目標がありました。これには、新しいアイデアや技術のブレインストーミング、zkSecurityのセキュリティ研究者の専門知識をzkaoに体系的にエンコードすること、最新かつ最も深刻な脆弱性をベンチマークに偏ることなく検出すること、そして重要なことに、何が機能し、何が機能しないか、モデルがどのように進化するかを理解し、AIによるバグ発見の理解を深めるための実験を継続的に実施することが含まれていました。これらの実験の中には、製品とは独立して共有する価値のあるものがあり、この投稿シリーズはそのことについてです。2つ目の動機もあります。これらの実験は、zkaoのベンチマークスイートを構築する方法であり、その過程で、LLMが実際に暗号学についてどのように推論するか、どこが鋭く、どこが盲目か、そして前者を増幅し、後者を抑制する方法についての洞察を継続的に提供しています。バグは目に見える成果ですが、推論パターンこそが私たちが最も関心のある部分です。数ヶ月前、私たちは選択されたコードベースで実験を開始しました。いくつかのオープンソース暗号プロジェクトをLLMを使用してスキャンしました。2つの構成で実行しました。- **LLMのみ**、シンプルなプロンプトを使用。- **LLMとスキル**、スキルは私たちのチームの専門家によって維持されました。その後、LLMが実際の脆弱性を発見した重要なプロジェクトについては、zkaoを実行して、それが単独で同じ問題を検出できたかどうかを確認しました。ほとんどの場合、zkaoはそれらすべてを発見しただけでなく、より複雑でより深刻なものも特定しました。結果は十分に良好だったので、私たちはそれらを書き留めることにしました。このシリーズは、高度な量子後暗号ライブラリであるCloudflareの**CIRCL**から始めます。CIRCLでは、私たちのパイプラインは多くの候補となる発見を生成し、そのうち7つをここで報告する価値があります。これら7つはすべて上流で修正済みです。それらのほとんどは、HackerOneのCloudflareプログラムの下で確認され、報奨金が授与されました。**明確化**: AIは候補となる発見を生成したのであり、最終報告ではありません。私たちのチームの人間が各問題を検証し、悪用可能性をチェックし、必要に応じてPOCを最小化し、開示を処理しました。AIの候補となる発見は安価ですが、信頼できる報告はそうではないため、この**人間参加型**のステップは依然として非常に重要です。そのステップを最小化することがzkaoの主な目的の1つであり、まだ進行中の作業ですが、現在のバージョンはすでにこの検証作業の多くを自身で引き受けています。## 重大度と修正の概要詳細に入る前に1つ指摘しておきたいことがあります。AIが自身の発見に割り当てる重大度はノイズが多いです。AIが評価した各バグと、修正後にCloudflareが確認した重大度を以下に示します。また、これら7つすべてが現在のバージョンのzkaoによって一貫して再現可能であることも確認しました。AIの重大度と確認された重大度との間のギャップ自体が興味深い洞察であり、最後にそれに戻ります。それでは、7つのバグを1つずつ見ていきましょう。### バグ1: `float64`での多項式評価これはCIRCLの**閾値RSA**実装（`tss/rsa`）にあります。閾値署名は、Shamir型秘密分散を使用して`n`人のプレイヤー間で秘密を分割します。`Deal()`は、各プレイヤーのインデックスで秘密多項式を評価します。係数は`big.Int`であり、そうあるべきですが、項`x^i`は次のように計算されていました。```go// tss/rsa/rsa_threshold.goxi := int64(math.Pow(float64(x), float64(i)))````float64`は53ビットの仮数部を持ちます。`x^i`が`2^53`（およそ`9 × 10^15`）を超えた瞬間、結果は整数にキャストされる前に**黙って丸められます**。例えば、100人のプレイヤーと閾値27の場合、`x = 100`で`i = 26`を評価すると`100^26 = 10^52`となり、`2^53`を36桁も超えてしまいます。`x = 20`、`i = 16`でもすでに壊れます。その結果、多項式が誤って評価され、プレイヤーに渡されるキーシェアが間違ったものになります。パラメータによっては、署名の組み合わせが完全に失敗するか、問題ないように見えるシェアが生成されるものの、意図したキーを再構築できません。私たちのエージェントはこれを**クリティカル**と評価しました。なぜなら、これは誤ったキーシェアの生成につながり、プロトコルの正確性を損なうからです。Cloudflareは最終的に、実際に影響を受ける条件が発生する可能性が低いことに基づき、この問題を**低**重大度と評価しました。修正は、",
+      "category": "ニュース",
+      "importance": 4,
+      "source": "HackerNews",
+      "published_at": "2026-07-08T05:25:35Z"
+    },
+    {
+      "url": "https://www.itmedia.co.jp/aiplus/article/2607/08/2000000172/",
+      "title_ja": "Claude最上位プラン、OSS開発者へ無料提供",
+      "summary_ja": "Anthropicが、オープンソースソフトウェア（OSS）開発者向けに、Claudeの最上位サブスクリプションプラン「Claude Max 20x」を6カ月間無料で提供するキャンペーンの対象を拡大。AI開発エコシステムへの貢献を促す取り組み。",
+      "key_points": [
+        "Claude最上位プランを無料提供",
+        "OSS開発者向けキャンペーン拡大",
+        "AIエコシステムへの貢献を支援"
+      ],
+      "translation_ja": "Claude「サブスク最上位プラン」6カ月間無料で提供 OSS開発者向けキャンペーン、対象を拡大（1/2 ページ）米Anthropicは7月7日（現地時間）、オープンソースソフトウェア（OSS）開発者向けのキャンペーン「Claude for Open Source」の対象範囲を拡大したと発表した。認定した対象者には、最上位のサブスクリプションプラン「Claude Max 20x」を6カ月間無料で提供する。特設サイトからClaude for Open Sourceに応募できる。対象となる開発者は次の通り。- OSSの管理者およびライブラリ作者：手掛けるOSSに依存するリポジトリが500以上、依存するパッケージが100以上、または各言語のレジストリにおける月間ダウンロード数が20万以上の人物。- コア技術の開発者：著名なOSS開発組織に管理者またはコミッターとして登録されている人物。- 積極的な開発者：過去1年間に自分が所有していないリポジトリに対し、100件以上のプルリクエストを作成してマージされた人物。- コミュニティービルダー：過去1年間に自分が所有するいずれかのリポジトリに対し、20人以上の外部の開発者によるプルリクエストをマージした人物。- 重要なOSSの開発者：保守しているリポジトリのいずれかがOpen Source Security Foundationの指標「Criticality Score」で0.4以上を獲得している人物。なお、条件に当てはまらない場合でも「エコシステムがひそかに依存しているものを管理しているならば、ぜひ応募して内容について教えてほしい」としている。Claude for Open SourceはAnthropicが2月に始めたキャンペーン。OSS開発者によるAI開発のエコシステムへの貢献に対する謝意を示す取り組みという。Copyright © ITmedia, Inc. All Rights Reserved.関連記事こんなメディアも見られていますITmedia AI＋に関連する情報をお探しであれば、こちらのメディアもお役に立てるかもしれません。SpecialPRよく見られているカテゴリーアクセスランキング- 1「Claude Fable 5」サブスク、突如5日間延長 ユーザー悲喜こもごも「寝ずに頑張ったのに」「制限リセットして」- 2AIが破壊するIT業界の“人月商売” 「SIerの死」後に“生き残る者”の正体- 3農水省の“クソダサ”ポスター話題 「AIよりよっぽど良い」の声も 担当者に狙いを聞く- 4「AIが引用するドメイン」不動の首位は……- 5AIコーディングの「ループ」4種類を完全入門 Anthropic公式が分かりやすく整理して解説- 6note上方修正 「AI活用、想定以上」で人件費率低下 2Q累計営業益は「20倍超」に- 7ソフトバンクの「1人100エージェント」を支える独自AIゲートウェイ「Cloud Proxy」の正体- 8富裕層にいかに金を使わせる？ ダイナースとニューオータニ「18万円超カード」の真意- 9カクヤス「30年物の泥沼システム」をAIでどう解読？ 現場が思いついた“ある考え”- 10OpenAIの最新AI「GPT-5.6」シリーズ、今週木曜日に一般公開へSpecialPRITmedia AI＋ SNSインフォメーション注目情報をチェックITmedia AI＋をフォローあなたにおすすめの記事PR",
+      "category": "ニュース",
+      "importance": 4,
+      "source": "RSS",
+      "published_at": "2026-07-08T09:54:06Z"
+    },
+    {
+      "url": "https://twitter.com/claudeai/status/2074548242386178258",
+      "title_ja": "Claude Fable 5、利用期間延長",
+      "summary_ja": "Claude AIが、有料プランでのFable 5へのアクセスを7月12日まで延長すると発表。ユーザーは引き続き最新の高性能AIモデルを利用できる。",
+      "key_points": [
+        "Claude Fable 5のアクセス延長",
+        "有料プラン向けに7月12日まで",
+        "最新モデルの利用機会を確保"
+      ],
+      "translation_ja": "Claude Fable 5へのアクセスを、すべての有料プランで7月12日まで延長します。",
+      "category": "ニュース",
+      "importance": 3,
+      "source": "HackerNews",
+      "published_at": "2026-07-07T17:44:50Z"
+    }
+  ]
+}
