@@ -832,7 +832,12 @@ def build_discord_payload(articles: list[dict], date: str) -> dict:
             "inline": False
         })
 
+    # content：Discordのプッシュ通知プレビューに全記事タイトルを表示するためのプレーンテキスト
+    # （embedsのみだとプッシュ通知本文に記事タイトルが反映されないため）
+    title_list = "\n".join(f"{i + 1}. {art['title_ja']}" for i, art in enumerate(articles))
+
     return {
+        "content": f"🧠 Neura Daily — {date}（{len(articles)}件）\n{title_list}",
         "embeds": [{
             "title": f"🧠 Neura Daily — {date}（{len(articles)}件）",
             "color": 0x7c6aff,  # アクセントパープル

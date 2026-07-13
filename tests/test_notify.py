@@ -33,6 +33,19 @@ def test_build_discord_payload_source_label_and_link():
     assert "https://x.com/a" in field["value"]
 
 
+def test_build_discord_payload_content_lists_all_titles():
+    articles = [
+        _article(title="記事A"),
+        _article(title="記事B"),
+        _article(title="記事C"),
+    ]
+    payload = notify.build_discord_payload(articles, "2026/06/18")
+    content = payload["content"]
+    assert "1. 記事A" in content
+    assert "2. 記事B" in content
+    assert "3. 記事C" in content
+
+
 def test_main_exits_when_articles_empty(monkeypatch, tmp_path):
     """記事0件のJSONを読み込んだ場合、Discord送信せずsys.exit(1)すること。"""
     empty_json = tmp_path / "summarized.json"
