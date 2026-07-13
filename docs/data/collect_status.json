@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-07-13T04:01:10Z",
+  "run_at": "2026-07-13T10:01:18Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
@@ -7,7 +7,7 @@
     },
     "Reddit r/artificial": {
       "status": "ok",
-      "count": 23
+      "count": 25
     },
     "Reddit r/MachineLearning": {
       "status": "failed",
