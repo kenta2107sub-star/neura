@@ -1,0 +1,82 @@
+{
+  "date": "2026-07-20",
+  "time": "13:00",
+  "generated_at": "2026-07-20T04:02:49Z",
+  "articles": [
+    {
+      "url": "https://qiita.com/bug-mi-dev/items/91ce5281536ca05b2506",
+      "title_ja": "AIコード本番投入の注意点",
+      "summary_ja": "ChatGPTなどのAIが生成したコードをそのまま本番環境に使うのは危険だと警鐘を鳴らし、安全に活用するための具体的なベストプラクティスを解説。動作確認やセキュリティレビューの重要性を学び、AIを優秀なアシスタントとして正しく使う方法がわかります。",
+      "key_points": [
+        "AIコードはレビューなしで本番投入しない",
+        "ユニットテストとセキュリティレビューが必須",
+        "AIコードレビュー用チェックリストとCI活用"
+      ],
+      "translation_ja": "はじめに\n\n「AIが書いたコードだから絶対正しいはず！」\nえ、まだAIのコードをレビューなしで本番に入れてるんですか？AIは自信満々に間違いを書くことがあります\n\nこの記事で解決すること\n\n動画「【AI】ChatGPTのコードをそのまま本番投入」の補足記事です。\n動画では時間の都合で触れられなかった詳細を解説します。\n\n問題：なぜこれが危険なのか\n\nえ、まだAIのコードをレビューなしで本番に入れてるんですか？AIは自信満々に間違いを書くことがあります\n\n解決策：明日から使えるベストプラクティス\n\nAIコードは必ず動作確認とセキュリティチェックをしてから使う\n\n❌ 悪い例：AIが生成したコードをそのまま本番へ\n\n一見問題なさそうですが、SQLインジェクションの脆弱性があります。\n```javascript\n// AIが生成したコード（レビューなし）\napp.get(\"/user\", async (req, res) => {\nconst id = req.query.id;\n// SQLインジェクションの危険\nconst sql = `SELECT * FROM users WHERE id = ${id}`;\nconst result = await db.query(sql);\nres.json(result.rows);\n});\n```\n攻撃者が以下のようなURLへアクセスすると...\n`https://example.com/user?id=1 OR 1=1`\n\n実行されるSQL\n`SELECT * FROM users WHERE id = 1 OR 1=1;`\n\n結果\n- 全ユーザー情報が取得される\n- 個人情報漏洩\n- AIは「動くコード」を生成していても、「安全なコード」とは限らない\n\n✅ ベストプラクティス① 動作確認（ユニットテスト）\n\nまずは期待通り動くかをテストします。\n```javascript\n// user.test.js\nimport request from \"supertest\";\nimport app from \"./app\";\n\ntest(\"ユーザー取得API\", async () => {\nconst res = await request(app)\n.get(\"/user?id=1\");\nexpect(res.statusCode).toBe(200);\nexpect(res.body.id).toBe(1);\n});\n```\n`npm test`\n最低限、\n- 正常系\n- 異常系\n- 境界値\nを確認します。\n\n✅ ベストプラクティス② セキュリティレビュー\n\nSQLは必ずプレースホルダーを使用します。\n```javascript\napp.get(\"/user\", async (req, res) => {\nconst id = req.query.id;\nconst result = await db.query(\n\"SELECT * FROM users WHERE id = $1\",\n[id]\n);\nres.json(result.rows);\n});\n```\nこれなら入力がSQLとして実行されません。\n\n✅ ベストプラクティス③ AIコードレビュー用チェックリスト\n\nレビュー前に最低限確認します。\n☑ 入力値の検証があるか\n☑ SQLインジェクション対策があるか\n☑ XSS対策があるか\n☑ 認証・認可の漏れはないか\n☑ エラーハンドリングがあるか\n☑ ログにパスワードを書いていないか\n☑ ハードコードされた秘密鍵がないか\n☑ テストが通るか\n\n✅ ベストプラクティス④ AIによるコード解析も活用する\n\nAIに次のようなレビューを依頼すると、見落としを減らせます。\n```\n以下のコードをシニアエンジニアとしてレビューしてください。\n観点\n- セキュリティ\n- パフォーマンス\n- 可読性\n- 保守性\n- バグの可能性\n- 改善案\n問題があれば修正版も提示してください。\n```\n\n✅ ベストプラクティス⑤ CIで自動チェック\n\nGitHub ActionsでAIコードも含めて自動テストと静的解析を実行します。\n```yaml\nname: Code Review\non:\npull_request:\njobs:\ntest:\nruns-on: ubuntu-latest\nsteps:\n- uses: actions/checkout@v4\n- uses: actions/setup-node@v4\nwith:\nnode-version: 20\n- run: npm ci\n- run: npm test\n- run: npm run lint\n```\nこれにより、レビュー前に基本的な品質チェックを自動化できます。\n\n🎯 明日から使えるベストプラクティス\n\nAIは優秀なコーディング支援ツールですが、「正しいコード」を保証するものではありません。\n本番へ反映する前に、次の流れを習慣化しましょう。\n- AIが生成したコードを人がレビューする\n- ユニットテスト・統合テストで動作確認する\n- SQLインジェクションやXSSなどのセキュリティを確認する\n- Linter・静的解析・CIを通して品質をチェックする\n- 問題がないことを確認してから本番へデプロイする\n\nこのプロセスを徹底することで、AIの生産性を活かしつつ、安全で信頼性の高いソフトウェア開発を実現できます。\n\nまとめ\n\nAI丸投げを卒業して、AIを『優秀なアシスタント』として正しく使いましょう！\n#まだやってるんですか #コードの女神はみた #プログラミングスキル\n\n動画で見る\n\nYouTubeショート動画でも同じテーマを解説しています👇\nチャンネル登録・高評価もよろしくお願いします 🔔\nこの記事は「コードの女神は見た！」チャンネルの連動記事です。",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "Zenn",
+      "published_at": "2026-07-20T03:55:08Z"
+    },
+    {
+      "url": "https://qiita.com/aimakerlab/items/6efe464fa15ee9dedf23",
+      "title_ja": "AIライティングツールの使い分け",
+      "summary_ja": "3つのAIライティングツール（Catchy, Transcope, ElevenLabs）を3ヶ月間使った経験から、それぞれのツールの得意な役割に応じた最適な使い分け方を解説。ネタ出し、SEO対策、音声・動画化といった具体的な運用フローがわかり、AIツールの選び方と活用法が学べます。",
+      "key_points": [
+        "AIライティングツールは役割で使い分ける",
+        "Catchyはネタ出し・叩き台に最適",
+        "TranscopeはSEO仕上げ、ElevenLabsは音声化"
+      ],
+      "translation_ja": "AIライティングツールを複数メディアで3ヶ月実運用して分かったのは、「どれが優秀か」より「何のために使うか」が先、ということです。\nツール選びで詰まるのは、比較記事が「15選を横並び」にしているからだと気づきました。本記事では **Catchy**・**Transcope**・**ElevenLabs** に絞り、実際の運用フローから「役割で切り分ける使い方」を整理します。\n\n1. ネタ出し・叩き台 = Catchy\n\n**Catchy** は広告コピー・SNS文・記事見出しなどを「100種以上のテンプレで手早く出す」ことに特化しています。Free（毎月10クレジット）から試せるのが強みです。\nよく見る「Catchy はひどい」という評判の正体は、完成品として使おうとしているからです。このツールは「叩き台を速く出す」設計で、叩き台→人間が編集→公開のフローを前提にすると、手数の速さが明確に効きます。\n単発文章なら ChatGPT で十分、毎日量産するなら Catchy の専用テンプレが時短になる、が実感値です。\n\n2. SEO仕上げ = Transcope\n\n**Transcope** は競合分析→見出し設計→本文生成→順位計測を1ツールで完結します。個人ブログには重い価格（Basic ¥11,000/月〜）ですが、「集客が売上に直結する事業」ならば月1〜2件の問い合わせ増で回収できる計算です。\n「高い」「効果ない」という評判は用途が合っていないケースが大半でした。コンテンツ戦略が正しい前提で使えば、特定キーワードでの順位改善傾向は3ヶ月で確認できました。\n\n3. 音声・動画展開 = ElevenLabs\n\n仕上げた記事を音声化し、ショート動画や音声コンテンツへの二次展開をカバーします。テキストコンテンツの「賞味期限」を伸ばす最終ステップとして、最近ワークフローに加えました。\n\n3ツールの使い分け判断\n\nChatGPT との違いはどこか\n\n差が出るのは「ワークフローが内蔵されているか」の点です。ChatGPT も文章は書けますが、毎回プロンプトを組む必要があります。Catchy はテンプレ選択→即出力、Transcope は競合分析〜順位計測まで一気通貫。毎日回すなら専用ツールの段取り短縮が効いてきます。\n\n実運用フロー\n\n- ネタ出し・叩き台 → Catchy で見出し案・SNS文を大量生成\n- SEO仕上げ → Transcope で競合分析・本文整備・順位計測\n- 音声・動画展開 → ElevenLabs で記事を音声化してショート動画に二次展開\n\n詳細な比較・評判の検証・実測データは下記にまとめています。",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "Zenn",
+      "published_at": "2026-07-20T03:09:56Z"
+    },
+    {
+      "url": "https://qiita.com/mkuwan/items/f06d2ef9c94787d53b09",
+      "title_ja": "AIエージェントの解剖学：Function Calling",
+      "summary_ja": "AIエージェントが外部ツールと連携するための「Function Calling」と「構造化出力」の仕組みを解説。LLMの曖昧な言葉を厳密なJSONデータに変換し、プログラムを実行する流れを、簡単なPythonコード例で体験できる。AIが現実世界で行動する仕組みがわかる。",
+      "key_points": [
+        "Function CallingでAIが外部連携",
+        "曖昧な言葉をJSONに変換",
+        "簡単なコードで動作を体験可能"
+      ],
+      "translation_ja": "## 【AIエージェントの解剖学：第2回】知能に手足を与える：Function Callingと構造化出力\n\n【新連載：AIエージェントの解剖学】\n※本連載は、何も話せない空っぽの「チャットボット」の前に立ち、彼に命を吹き込みながら、自分の意志で動く「AIエージェント」へとパーツごとに作り上げていく開発ドキュメンタリーです。\n\n### 1. プロローグ：次のパーツ「言葉を物理的な力に変える神経」\n\n前回、私たちはロボットの脳の空きスロットに、思考と行動の基本回路である「ReAct」のチップを差し込みました。\nこれにより、彼は「現状を整理し、次に必要な行動を頭の中で計画する」という知的な鼓動を始めました。\nしかし、今の彼はまだ「頭の中で考えているだけ」の存在です。\n「天気を調べるために、天気予報APIを呼び出す必要がある」と思考することはできても、実際にネットワークの向こう側にあるAPIを叩いたり、PCのファイルを読み書きする具体的な「手足」はまだ持っていません。\n今回は、彼の言葉としての意志を、プログラムやAPIを物理的に動作させる手足へと電気的に接続する神経インターフェース、「**Function Calling（関数呼び出し）と構造化出力**」の神経ケーブルをロボットに装着します。\nアームにケーブルを這わせ、外部システムと同期させましょう。\n\n### 2. 曖昧な言葉を、厳密な「データ構造」へ変換する\n\nLLMの本質は、「入力された文章に続く、確率的にもっともらしい言葉を生成し続けること」です。\nしかし、コンピュータのプログラムやAPIを動かすためには、人間が使うような曖昧な言葉ではなく、関数名や引数（引数の名前と型）といった「1文字の狂いもない厳密なデータフォーマット（**JSON**）」が必要です。\n「東京の天気を調べて」という人間の曖昧な要求から、プログラムが処理できる `get_weather(city=\"Tokyo\")` という厳密な形式を、LLMにどうやって出力させるでしょうか？\nFunction Callingが登場する以前は、プロンプトに「必ずJSON形式で出力してください。余計な説明文は一切省いてください」と涙ぐましい努力で懇願していました。しかし、それでもLLMは気まぐれに「はい、JSONを出力します： json ... 」と余計な枕詞をくっつけてしまい、プログラム側でパース（解析）エラーを起こして暴走するのが日常茶飯事でした。\nこの課題をモデルの学習とデコード制御によって解決したのが、「**Function Calling**」と、JSONの形式を100%保証する「**構造化出力（Structured Outputs）**」です。\n\n### 3. Function Callingのデータフロー\n\nFunction Callingを実装したエージェントの内部では、以下のようなデータの往復が発生しています。\n※図：ユーザー要求とツール定義（スキーマ）からJSONを抽出し、関数を実行して結果を戻すFunction Callingのデータフロー（AI生成ダイアグラム）\n- **仕様書の提示**: プログラム側は、ユーザーの質問と一緒に、エージェントが使用できる関数の「仕様書（JSON Schema）」をLLMに提示します。\n- **意図の抽出（Tool Call）**: LLMは質問と仕様書を読み、「この質問に答えるには、この関数をこのパラメータで呼ぶべきだ」と判断します。そして、人間向けの会話テキストではなく、「関数名と引数を格納したJSONデータ」だけを出力して応答を一時停止します。\n- **関数の実行**: プログラム側がそのJSONをパースし、ローカル環境で実際の関数（API呼び出しなど）を実行します。\n- **結果の観察**: 実行結果（生データ）をLLMに差し戻し、LLMがそれをもとに最終的な回答テキストを作成します。\n\nこれによって、曖昧な「言葉の海」と、厳密な「プログラムコードの世界」が、安全かつ確実なJSONの神経系で繋がったのです。\n\n### 4. 【体験】30行のFunction Callingシミュレータを動かそう\n\n実際のWeb APIを叩かなくても、LLMが提示されたスキーマ（仕様書）を解釈し、プログラム側がその出力JSONを元に関数を動的実行する「Function Callingの動作原理」を体験できるPythonコードです。\n手元の環境で実行してみてください。\n\n```python\nimport json\n\n# エージェントが使えるローカルの関数（手足）\ndef calculate_distance(speed: float, hours: float) -> str:\n    distance = speed * hours\n    return f\"計算結果: 移動距離は {distance} km です。\"\n\n# 1. プログラム側が定義する「関数の仕様書（Schema）」のシミュレート\ntools_schema = {\n    \"name\": \"calculate_distance\",\n    \"description\": \"速度と時間から移動距離を計算する関数\",\n    \"parameters\": {\n        \"speed\": \"float (時速 km/h)\",\n        \"hours\": \"float (時間 h)\"\n    }\n}\n\n# 2. ユーザーの曖昧な要求\nuser_query = \"時速60kmで2.5時間走ったら、どれくらい進む？\"\nprint(f\"【ユーザー要求】: {user_query}\n\")\n\n# 3. LLMが仕様書を元に生成した「Tool Call JSON」（擬似出力）\n# 実際はLLMの推論によって、以下の構造化テキストが自動生成されます\nmock_llm_json_output = \"\"\"\n{\n    \"call_function\": \"calculate_distance\",\n    \"arguments\": {\n        \"speed\": 60.0,\n        \"hours\": 2.5\n    }\n}\n\"\"\"\nprint(f\"🤖 LLMからの構造化出力 (JSON):\n{mock_llm_json_output.strip()}\n\")\n\n# 4. プログラム側でJSONを解析し、関数を動的に実行する（神経の伝達）\ntool_call = json.loads(mock_llm_json_output)\nfunction_name = tool_call[\"call_function\"]\nargs = tool_call[\"arguments\"]\n\nprint(\"⚡ システム: JSONを解析してローカルの関数を呼び出します...\")\nif function_name == \"calculate_distance\":\n    # 引数を展開して関数を実行\n    result = calculate_distance(speed=args[\"speed\"], hours=args[\"hours\"])\n    print(f\"🔍 Observation (実行結果): {result}\")\n```\n\nこのコードを実行すると、LLMが出力したJSON文字列（`mock_llm_json_output`）をPythonシステムがパースし、安全にローカルの関数 `calculate_distance` を選択して正しい引数で実行する流れが再現されます。\n\n### 5. エピローグ：手足が動き始めたロボット\n\n※画像：ロボットのアームへ、言葉（JSON）を電気信号に変えて外部APIへ繋ぐ神経ケーブルを接続するイメージ（AI生成画像）\nこれで、私たちのロボットのアームに「**Function Calling**」の神経ケーブルが這わされ、彼の頭脳と外部世界を操作する手足が電気的に同期しました。\nしかし、ここでもう一つの課題が浮かび上がります。\n世の中には、天気予報、データベース、Slack、ファイルシステムなど、無数の外部ツールが存在します。新しいツールを追加するたびに、私たちが手作業でJSON Schemaを書き、個別の接続プログラム（APIクライアント）をゴリゴリと書くのは、あまりに非効率でスマートではありません。\nもし、世界中のすべてのツールとAIを、まるでパソコンとUSBポートのように「挿すだけで使える」共通のプラグ＆プレイ規格があったらどうでしょうか？\n次回、第3回。\nAnthropicが提唱し、AI業界に革命を起こしつつある最新の接続標準、「**Model Context Protocol (MCP)の革新**」という共通USBソケットを彼に装着します。\nロボットの拡張性が、世界中のすべてのツールへと無限に広がる瞬間を見届けましょう。",
+      "category": "ツール",
+      "importance": 5,
+      "source": "Zenn",
+      "published_at": "2026-07-20T03:13:47Z"
+    },
+    {
+      "url": "https://qiita.com/technnyannya/items/cefb4d3d175df51a0d59",
+      "title_ja": "AIエージェント間の記憶共有ツール",
+      "summary_ja": "複数のAIコーディングエージェント（Claude CodeやCodex CLIなど）間で、過去の会話や作業内容を共有できるOSS「memcp」のアップデートを紹介。ツールを切り替えてもコンテキストが失われず、AIが以前の作業を思い出せるようになり、開発効率が向上します。",
+      "key_points": [
+        "複数のAIコーディングエージェント間で記憶を共有",
+        "ローカルメモリOSS「memcp」の機能拡張",
+        "ツール切り替え時のコンテキストリセット問題を解決"
+      ],
+      "translation_ja": "前回紹介した、AIコーディングエージェント向けローカルメモリOSS「memcp」のアップデートです。\nhttps://zenn.dev/tech_nnyannya/articles/14b8f5156f0a20\n\n複数のAIコーディングエージェントを併用すると起きること\n\n最近はClaude Codeだけでなく、Codex CLIのような複数のAIコーディングエージェントを併用している人も増えてきたと思います。ただ、これをやると新たな問題が出てきます。\n- Claude Codeで議論して決めたアーキテクチャの方針を、Codex CLIのセッションではもう一度説明する羽目になる\n- 「あのバグ、どっちのツールで直したんだっけ」を忘れる\n- 同じプロジェクトなのに、ツールを切り替えるたびにコンテキストがリセットされる\n\n今回、memcpをCodex CLIにも対応させ、Claude CodeとCodex CLIの間で記憶を横断検索できるようにしました。\n\nmemcpとは\n\n一言で言うと、複数のAIコーディングエージェントのセッションログをローカルのSQLiteに蓄積し、MCP（Model Context Protocol）経由でエージェント自身に検索させるツールです。\nセッションが終わる\n│\n▼\nログを取り込む・正規化する\n│\n▼\nローカルのSQLiteに保存（FTS5で全文検索）\n│\n▼\n別のセッションで、必要になったらエージェントが検索する\n\nデータは一切外部に送信されません。クラウド同期もテレメトリもなし、全部ローカルのSQLite一本で完結します。\n現在提供しているMCPツールは以下の4つです。\n\n何が新しくなったか：エージェント横断の記憶\n\nここが今回の本題です。\nClaude CodeとCodex CLIは、開発元も違えば、セッションログの形式も、設定ファイルの場所も、MCPサーバーの登録方法も、何もかもが別物です。この2つの間で記憶を共有するには、それぞれのログ形式を専用のパーサーで読み、共通のスキーマ（セッション・メッセージ・ツール呼び出し）に正規化して、同じSQLiteデータベースに集約する必要がありました。\n`ParseFn = Callable[[Path], tuple[Session, list[Message], list[ToolCall]]]`\nこの形のパーサーを1つ書けば、新しいエージェントに対応できる構造にしてあります。今回はこれにCodex CLI用の実装を追加し、`memcp setup`\nもCodex CLI側のMCPサーバー登録・自動取り込み設定まで一括で面倒を見るように拡張しました。\n\nその結果、こんなことができるようになりました。\n── Claude Codeでの過去のセッション ──\nUser: JWTのリフレッシュトークン、ローテーションはどう実装した？\nClaude: Redisでスライディングウィンドウ方式の失効管理を実装しました。\n（このセッションはここで終了）\n── 数日後、Codex CLIで新しいセッションを開始 ──\nUser: 前にJWTのリフレッシュトークンの実装、どうやったんだっけ？\nCodex: `[search_memory(\"JWT refresh token rotation\") を実行]`\n見つかりました — 2026-06-10のClaude Codeのセッションです。\nRedisでトークン失効管理をするスライディングウィンドウ方式を\n使っていますね。実装の詳細も読み込みましょうか？\n\n別のベンダーの、別のツールが、自分が知らないはずの過去の作業を正確に思い出す。 これが実際に動いているのを見たとき、地味だけどかなり手応えを感じました。エージェントを切り替えるたびに文脈をゼロから説明し直す、という日常的なストレスが本当になくなります。\nセットアップは `memcp setup`\nだけで、Claude Code・Codex CLI両方のMCPサーバー登録と自動取り込み設定を一括で行います。\n\n今できること／できないこと\n\nできること\n- Claude Code・Codex CLI、両方のセッションログの取り込みとパース\n- どちらのエージェントからも、MCP経由でセッションを横断検索\n\nまだできないこと\n- Codex CLI単体だと、セッション終了時の自動取り込みがまだ動かない（Codex側のフック対応待ち。手動で\n`memcp ingest-new`\nを叩く必要がある） - Cursor / Windsurf など、他のエージェントはまだ未対応\n- 意味検索（embedding）はまだない\n\nおわりに\n\n「複数のAIコーディングエージェントを併用しても記憶が分断されない」というのは、エージェントが増えていくこれからの開発体験において、地味だけど効いてくる部分だと思っています。\nフィードバック・PR、お待ちしています🙏",
+      "category": "ツール",
+      "importance": 4,
+      "source": "Zenn",
+      "published_at": "2026-07-20T03:32:27Z"
+    },
+    {
+      "url": "https://techfeed.io/entries/6a5be90b3d5307dbb0d5d745",
+      "title_ja": "余ったMacをClaude Code専用マシンに",
+      "summary_ja": "海外記事の紹介として、使っていないMacをAIコーディングアシスタント「Claude Code」専用マシンにする方法を解説。SSHやtmuxなどを活用し、AIがシステムをフル制御できる環境を構築する手順が詳しく紹介されています。",
+      "key_points": [
+        "海外記事でMacをAIエージェント化する方法を紹介",
+        "Claude CodeがMacをフル制御する環境を構築",
+        "SSH・tmux・LaunchAgentを活用"
+      ],
+      "translation_ja": "【海外記事紹介】余ったMacをClaude Code専用の「何でもやらせるマシン」にする — SSH・tmux・LaunchAgentで権限フル解放のエージェント環境を構築\n\n7月18日、ykdojo.github.ioが「How to set up your spare Mac for Claude Code to fully control」と題した記事を公開した。この記事では、余っているMacをClaude Codeが完全制御できるエージェント専用マシンとして構築する手順について詳しく紹介されている。以下に、その内容を紹介する。\nLoading...",
+      "category": "ツール",
+      "importance": 3,
+      "source": "HatenaBookmark",
+      "published_at": "2026-07-19T02:57:42Z"
+    }
+  ]
+}
