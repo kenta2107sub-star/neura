@@ -548,6 +548,16 @@
     }
     .article-card--compact .article-summary { display: none; }
 
+    /* Read state (FR-07) */
+    .article-card--read { opacity: 0.7; }
+    .read-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--sub);
+      white-space: nowrap;
+    }
+
     .article-top {
       display: flex;
       align-items: center;
@@ -1451,9 +1461,9 @@
           <div id="src-run-status" class="run-status" style="display:none;"></div>
         </div>
         <div id="cfg-schedules" class="schedule-list"></div>
-        <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。変更すると .github/workflows/daily.yml の cron 式が自動更新されます（PAT に <code>workflow</code> スコープが必要）。cron-job.org のAPIキーとジョブIDを設定すると、cron-job.org のスケジュールも自動同期されます。</p>
+        <p style="font-size:11px;color:var(--sub);margin-top:8px;">最大3回まで設定できます。実行時刻は cron-job.org 側が管理しており、daily.yml 自体は書き換えません。cron-job.org のAPIキーとジョブIDを設定すると、時刻変更が cron-job.org のスケジュールに自動同期されます（未設定の場合は cron-job.org の管理画面で手動更新してください）。</p>
         <p class="settings-fielderr" id="cfg-sched-err" style="display:none;margin-top:4px;">少なくとも1つのスケジュールを有効にしてください。</p>
-        <p style="font-size:11px;color:var(--sub);margin-top:10px;line-height:1.7;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">⚠️ <strong style="color:var(--sub);">スケジュール変更の注意</strong><br>新しいスケジュールを登録してから <strong style="color:var(--sub);">最初の実行まで最長24〜48時間かかる</strong> ことがあります（GitHub Actions の仕様）。また、GitHub の負荷状況によって設定時刻より数時間遅れて実行される場合があります。いずれも正常な動作です。</p>
+        <p style="font-size:11px;color:var(--sub);margin-top:10px;line-height:1.7;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">⚠️ <strong style="color:var(--sub);">スケジュール変更の注意</strong><br>cron-job.org 側でジョブIDを連携していない場合、時刻の変更は自動反映されません。cron-job.org の管理画面で該当ジョブの時刻も合わせて更新してください。</p>
       </div>
 
       <!-- キーワード -->
@@ -1546,6 +1556,49 @@
         .replace(/(#[^\n]*)/g, '<span class="tk-cm">$1</span>');
     }
     return code;
+  }
+
+  /* ── Read tracking (FR-07) ── */
+  const READ_ARTICLES_KEY = 'neura_read_articles';
+
+  function getReadArticles() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(READ_ARTICLES_KEY) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];  // ERR-15：パース失敗時は空配列扱い（localStorage無効時と同様のフォールバック）
+    }
+  }
+
+  function isArticleRead(url) {
+    return getReadArticles().includes(url);
+  }
+
+  function markArticleRead(url) {
+    try {
+      const list = getReadArticles();
+      if (list.includes(url)) return false;
+      list.push(url);
+      localStorage.setItem(READ_ARTICLES_KEY, JSON.stringify(list));
+      return true;
+    } catch (e) {
+      return false;  // ERR-15：localStorage無効時（プライベートブラウジング等）はサイレントに無効化
+    }
+  }
+
+  function markCardAsRead(card) {
+    if (!card) return;
+    const link = card.querySelector('.action-btn--read');
+    const url = link && link.getAttribute('href');
+    if (!url || !markArticleRead(url)) return;
+    card.classList.add('article-card--read');
+    if (!card.querySelector('.read-badge')) {
+      const badge = document.createElement('span');
+      badge.className = 'read-badge';
+      badge.textContent = '✓ 既読';
+      const topLeft = card.querySelector('.article-top-left');
+      (topLeft || card).prepend(badge);
+    }
   }
 
   /* ── Utils ── */
@@ -1641,6 +1694,7 @@
     const card  = panel.closest('.article-card, [data-idx]');
     const titleEl = card && card.querySelector('.article-title-text');
     openTranslationModal(panel.innerHTML, titleEl ? titleEl.textContent.trim() : '');
+    markCardAsRead(card);
   }
 
   /* ── Router ── */
@@ -1867,9 +1921,14 @@
     document.getElementById('article-list').innerHTML = articles.map((art, idx) => {
       const isFeature = art.importance >= 5;
       const isCompact = art.importance <= 2;
-      const cardClass = isFeature ? 'article-card article-card--feature article-card-anim'
-                      : isCompact ? 'article-card article-card--compact article-card-anim'
-                      :             'article-card article-card-anim';
+      const isRead = isArticleRead(art.url);
+      const cardClass = [
+        'article-card',
+        isFeature ? 'article-card--feature' : '',
+        isCompact ? 'article-card--compact' : '',
+        isRead ? 'article-card--read' : '',
+        'article-card-anim',
+      ].filter(Boolean).join(' ');
       const animDelay = `${idx * 0.08}s`;
 
       const kpBlock = keyPointsBlock(art.key_points);
@@ -1884,6 +1943,7 @@
           <div class="article-top">
             <div class="article-top-left">
               <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
+              ${isRead ? '<span class="read-badge">✓ 既読</span>' : ''}
               ${categoryBadge(art.category)}
             </div>
             ${importanceDots(art.importance)}
@@ -1985,14 +2045,21 @@
         : `<div class="translation-panel" id="${sid}">${srKpBlock}<p class="translation-unavailable">// 翻訳を取得できませんでした</p></div>`;
 
       const srIsFeature = art.importance >= 5;
+      const srIsRead = isArticleRead(art.url);
+      const srCardClass = [
+        'article-card',
+        srIsFeature ? 'article-card--feature' : '',
+        srIsRead ? 'article-card--read' : '',
+      ].filter(Boolean).join(' ');
       return `
-      <article class="article-card${srIsFeature ? ' article-card--feature' : ''}">
+      <article class="${srCardClass}">
         ${srIsFeature ? '<div class="article-ribbon" aria-hidden="true">FEATURED</div>' : ''}
         <div class="article-body">
           <div><span class="search-result-date">${date}</span></div>
           <div class="article-top">
             <div class="article-top-left">
               <span class="article-ln" aria-hidden="true">${String(idx + 1).padStart(2,'0')}</span>
+              ${srIsRead ? '<span class="read-badge">✓ 既読</span>' : ''}
               ${categoryBadge(art.category)}
             </div>
             ${importanceDots(art.importance)}
@@ -2041,6 +2108,7 @@
     const card  = panel.closest('.article-card, [data-idx]');
     const titleEl = card && card.querySelector('.article-title-text');
     openTranslationModal(panel.innerHTML, titleEl ? titleEl.textContent.trim() : '');
+    markCardAsRead(card);
   }
 
   /* ── Helpers ── */
@@ -2086,51 +2154,12 @@
     'ERR-09': "PATにリポジトリへの書き込み権限がありません。スコープ 'repo' / 'workflow' を確認してください。",
     'ERR-10': 'リポジトリが見つかりません。Owner / Repo の設定を確認してください。',
     'ERR-11': '設定の保存に失敗しました。しばらく後に再試行してください。',
-    'ERR-13': "設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。",
     'ERR-14': '設定は保存しましたが、cron-job.org のスケジュール更新に失敗しました。APIキーとジョブIDを確認してください。'
   };
 
   let currentSha = null;          // ghGetConfig で取得した config.json の sha
   let prevSchedules = null;       // 最後にロードした notify_schedules（変更検知用）
   let cachedGeminiPrompt = null;  // UI に出さないが保存時に引き継ぐ
-
-  /* notify_schedules → daily.yml の schedule ブロック文字列を生成 */
-  function schedulesToYamlBlock(schedules) {
-    const enabled = schedules.filter(s => s.enabled);
-    const lines = enabled.map(s => {
-      const utcH = ((s.hour - 9) + 24) % 24;
-      return `    - cron: '0 ${utcH} * * *'    # ${String(s.hour).padStart(2,'0')}:00 JST`;
-    });
-    return `  schedule:\n${lines.join('\n')}\n`;
-  }
-
-  /* daily.yml の schedule ブロックを書き換える */
-  async function ghPutWorkflow(schedules) {
-    const { owner, repo, pat } = getGithubCreds();
-    const getRes = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
-      { headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' } }
-    );
-    if (!getRes.ok) throw { code: 'ERR-13' };
-    const data = await getRes.json();
-    const current = decodeBase64Utf8(data.content);
-    const newBlock = schedulesToYamlBlock(schedules);
-    const updated = current.replace(/  schedule:\n(?:    - cron: '[^']*'[^\n]*\n)+/, newBlock);
-    if (updated === current) throw { code: 'ERR-13' };
-    const putRes = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/daily.yml`,
-      {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${pat}`, Accept: 'application/vnd.github+json' },
-        body: JSON.stringify({
-          message: 'chore: update notify schedules',
-          content: encodeBase64Utf8(updated),
-          sha: data.sha
-        })
-      }
-    );
-    if (!putRes.ok) throw { code: 'ERR-13' };
-  }
 
   /* cron-job.org スケジュール更新 */
   async function cronJobOrgUpdate(schedules) {

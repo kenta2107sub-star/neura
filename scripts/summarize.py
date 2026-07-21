@@ -146,6 +146,7 @@ def _call_gemini(client, prompt: str, types, response_schema=None) -> str:
                     response_schema=response_schema,
                     temperature=0.3,
                     max_output_tokens=32768,
+                    http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT * 1000),  # ミリ秒指定（NF-01）
                 ),
             )
             return response.text

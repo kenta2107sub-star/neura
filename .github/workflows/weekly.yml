@@ -1,0 +1,23 @@
+name: Neura Weekly Digest
+
+on:
+  workflow_dispatch:   # cron-job.org の固定ジョブ（毎週土曜12:00 JST）からトリガーする
+
+jobs:
+  weekly-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Send weekly digest (FR-09)
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/weekly_digest.py

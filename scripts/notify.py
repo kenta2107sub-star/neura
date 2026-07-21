@@ -32,39 +32,83 @@ SOURCE_LABEL = {
 }
 
 
+EMBED_CHAR_LIMIT = 6000
+SUMMARY_TRUNCATE_LEN = 100
+
+
 def load_json(path: str):
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def build_discord_payload(articles: list[Article], date: str) -> dict:
-    fields = []
-    for i, art in enumerate(articles):
-        emoji = CATEGORY_EMOJI.get(art.get("category", ""), "📄")
-        source = SOURCE_LABEL.get(art.get("source", ""), art.get("source", ""))
-        fields.append(
-            {
-                "name": f"{emoji} {art['title_ja']}",
-                "value": f"{art['summary_ja']}\n[{source}]({art['url']})\n​",
-                "inline": False,
-            }
-        )
+def build_field(art: Article, include_key_points: bool, truncate_summary: bool = False) -> dict:
+    emoji = CATEGORY_EMOJI.get(art.get("category", ""), "📄")
+    source = SOURCE_LABEL.get(art.get("source", ""), art.get("source", ""))
+    summary = art["summary_ja"]
+    if truncate_summary and len(summary) > SUMMARY_TRUNCATE_LEN:
+        summary = summary[:SUMMARY_TRUNCATE_LEN] + "…"
 
+    lines = [summary]
+    if include_key_points:
+        lines += [f"・{kp}" for kp in art.get("key_points", [])]
+    lines.append(f"[{source}]({art['url']})\n​")
+
+    return {
+        "name": f"{emoji} {art['title_ja']}",
+        "value": "\n".join(lines),
+        "inline": False,
+    }
+
+
+def embed_char_count(embed: dict) -> int:
+    total = len(embed.get("title", "")) + len(embed.get("footer", {}).get("text", ""))
+    for f in embed.get("fields", []):
+        total += len(f.get("name", "")) + len(f.get("value", ""))
+    return total
+
+
+def build_embed(articles: list[Article], date: str, fields: list[dict]) -> dict:
+    return {
+        "title": f"🧠 Neura Daily — {date}（{len(articles)}件）",
+        "color": 0x7C6AFF,  # アクセントパープル
+        "fields": fields,
+        "footer": {"text": "Neura by GitHub Actions"},
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+    }
+
+
+def fit_embed_to_char_limit(articles: list[Article], date: str) -> dict:
+    """全embed合計が6,000字を超える場合、importance昇順に key_points → summary_ja の順で削って収める（FR-03）。"""
+    fields = {art["url"]: build_field(art, include_key_points=True) for art in articles}
+    embed = build_embed(articles, date, [fields[a["url"]] for a in articles])
+    if embed_char_count(embed) <= EMBED_CHAR_LIMIT:
+        return embed
+
+    by_importance_asc = sorted(articles, key=lambda a: a.get("importance", 0))
+
+    for art in by_importance_asc:
+        fields[art["url"]] = build_field(art, include_key_points=False)
+        embed = build_embed(articles, date, [fields[a["url"]] for a in articles])
+        if embed_char_count(embed) <= EMBED_CHAR_LIMIT:
+            return embed
+
+    for art in by_importance_asc:
+        fields[art["url"]] = build_field(art, include_key_points=False, truncate_summary=True)
+        embed = build_embed(articles, date, [fields[a["url"]] for a in articles])
+        if embed_char_count(embed) <= EMBED_CHAR_LIMIT:
+            return embed
+
+    return embed
+
+
+def build_discord_payload(articles: list[Article], date: str) -> dict:
     # content：Discordのプッシュ通知プレビューに全記事タイトルを表示するためのプレーンテキスト
     # （embedsのみだとプッシュ通知本文に記事タイトルが反映されないため）
     title_list = "\n".join(f"{i + 1}. {art['title_ja']}" for i, art in enumerate(articles))
 
     return {
         "content": f"🧠 Neura Daily — {date}（{len(articles)}件）\n{title_list}",
-        "embeds": [
-            {
-                "title": f"🧠 Neura Daily — {date}（{len(articles)}件）",
-                "color": 0x7C6AFF,  # アクセントパープル
-                "fields": fields,
-                "footer": {"text": "Neura by GitHub Actions"},
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-            }
-        ]
+        "embeds": [fit_embed_to_char_limit(articles, date)],
     }
 
 

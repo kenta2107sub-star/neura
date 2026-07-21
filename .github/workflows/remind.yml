@@ -1,0 +1,23 @@
+name: Neura Unread Reminder
+
+on:
+  workflow_dispatch:   # cron-job.org の固定ジョブ（毎日9:00 JST）からトリガーする
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Send unread reminder (FR-08)
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/remind.py
