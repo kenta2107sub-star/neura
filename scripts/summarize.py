@@ -20,7 +20,8 @@ from schemas import Article, CollectedArticle
 INPUT_PATH = "/tmp/neura_collected.json"
 OUTPUT_PATH = "/tmp/neura_summarized.json"
 MODEL_NAME = "gemini-2.5-flash"
-GEMINI_TIMEOUT = 30  # NF-01
+GEMINI_TIMEOUT_SELECT = 30      # NF-01：Stage 1（軽量な選定処理）
+GEMINI_TIMEOUT_TRANSLATE = 120  # NF-01：Stage 2（本文フル翻訳の重い処理。30秒では504 DEADLINE_EXCEEDEDが多発したため）
 BODY_MAX_CHARS_SELECT = 700      # Stage 1 選定用（タイトル＋冒頭のみ）
 BODY_MAX_CHARS_TRANSLATE = 5000  # Stage 2 翻訳用（フル本文）
 SELECT_MAX = 10                  # Stage 1 で選ぶ件数の上限
@@ -132,7 +133,7 @@ def build_prompt(articles: list[CollectedArticle], template: str) -> str:
     return template.replace("{articles}", articles_text)
 
 
-def _call_gemini(client, prompt: str, types, response_schema=None) -> str:
+def _call_gemini(client, prompt: str, types, response_schema=None, timeout: int = GEMINI_TIMEOUT_SELECT) -> str:
     """リトライ付き Gemini 呼び出し。レスポンステキストを返す。API例外のみリトライ対象。失敗時は sys.exit(1)。"""
     max_retries = 5
     retry_wait = 60
@@ -146,7 +147,7 @@ def _call_gemini(client, prompt: str, types, response_schema=None) -> str:
                     response_schema=response_schema,
                     temperature=0.3,
                     max_output_tokens=32768,
-                    http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT * 1000),  # ミリ秒指定（NF-01）
+                    http_options=types.HttpOptions(timeout=timeout * 1000),  # ミリ秒指定（NF-01）
                 ),
             )
             return response.text
@@ -158,13 +159,14 @@ def _call_gemini(client, prompt: str, types, response_schema=None) -> str:
     sys.exit(1)
 
 
-def _call_gemini_json(client, prompt: str, types, response_schema=None, max_retries: int = 3) -> list:
+def _call_gemini_json(client, prompt: str, types, response_schema=None, max_retries: int = 3,
+                       timeout: int = GEMINI_TIMEOUT_TRANSLATE) -> list:
     """Stage 2専用。API呼び出し＋JSONパースをセットでリトライする。
     Geminiが不正なJSONを返した場合も再呼び出しして回復を試みる。失敗時は sys.exit(1)。
     """
     retry_wait = 30
     for attempt in range(1, max_retries + 1):
-        text = _call_gemini(client, prompt, types, response_schema=response_schema)
+        text = _call_gemini(client, prompt, types, response_schema=response_schema, timeout=timeout)
         try:
             result = json.loads(text)
             if not isinstance(result, list):

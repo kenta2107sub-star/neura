@@ -204,6 +204,37 @@ def test_get_current_slot_returns_empty_when_all_disabled():
     assert result == {}
 
 
+def test_call_gemini_uses_select_timeout_by_default():
+    """_call_gemini はデフォルトで Stage 1 用の GEMINI_TIMEOUT_SELECT(30秒)を使うこと。"""
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.models.generate_content.return_value.text = "ok"
+    types_mock = MagicMock()
+
+    summarize._call_gemini(client, "prompt", types_mock)
+
+    types_mock.HttpOptions.assert_called_with(timeout=summarize.GEMINI_TIMEOUT_SELECT * 1000)
+
+
+def test_call_gemini_json_uses_translate_timeout():
+    """_call_gemini_json はStage 2用のGEMINI_TIMEOUT_TRANSLATE(120秒)を_call_geminiに渡すこと。
+
+    2026-07-22〜23、Stage2にStage1と同じ30秒タイムアウトが使われていたため
+    504 DEADLINE_EXCEEDEDが連発し13時・19時の通知が止まった障害の再発防止。
+    """
+    captured = {}
+
+    def fake_call_gemini(client, prompt, types, response_schema=None, timeout=None):
+        captured["timeout"] = timeout
+        return '[{"url": "u1"}]'
+
+    with patch("summarize._call_gemini", side_effect=fake_call_gemini):
+        summarize._call_gemini_json(None, "prompt", None)
+
+    assert captured["timeout"] == summarize.GEMINI_TIMEOUT_TRANSLATE
+
+
 def test_call_gemini_json_retries_on_parse_failure():
     """JSONパース失敗時にリトライし、2回目で成功すること。"""
     responses = iter(["not valid json", '[{"url": "u1", "category": "ニュース"}]'])
