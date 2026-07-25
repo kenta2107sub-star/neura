@@ -1,0 +1,82 @@
+{
+  "date": "2026-07-25",
+  "time": "13:00",
+  "generated_at": "2026-07-25T04:03:18Z",
+  "articles": [
+    {
+      "url": "https://qiita.com/shu15511551/items/1dac63bf56182c113a13",
+      "title_ja": "ExcelでAI活用！数式説明・検品",
+      "summary_ja": "事務員がExcel VBAとClaude Codeを連携させ、AIをExcel内で動かす方法を紹介。数式の解説やデータ検品をAIが行い、作業効率を大幅に向上。ExcelとAIの組み合わせが、日常業務をどう変えるか具体的にわかります。",
+      "key_points": [
+        "ExcelとAIの連携で業務効率化",
+        "数式解説やデータ検品をAIが実行",
+        "非プログラマーでもAIを日常に"
+      ],
+      "translation_ja": "はじめに私は事務員です。プログラマーではありません。家の自分のPCで、Excel VBA と Claude Code を組み合わせる遊びと実益を続けています。前回は、Excel のボタンから Claude Code CLI を直接呼んで、ブック自身のマクロを AI が直す仕組みを書きました（「会話もいらずにマクロが直る」 エクセルの神様の答えにたどりついた話）。マクロの修正が、チャット画面へのコピペもいらず、ボタン一発・実測8秒で終わるようになった話です。今回はその続きです。同じ配管を「マクロ以外」に転用したら、数式の説明も、データの検品も、Excel の中で AI が働くようになりました。そして作りながら、確信に近づいたことが一つあります。これからは、Excel と AI のコンビネーションの時代になる、ということです。大きく出たように聞こえるかもしれませんが、本文で現物を見せながら、そう考える理由を書きます。TL;DR- マクロ修正用に作った「VBA から Claude Code CLI を呼ぶ配管」を、数式とデータに転用しました- AI数式フォーム：選択セルの数式を、シートの文脈ごと AI に渡して「解説・チェック・作成」する- AI検品フォーム：選択範囲のデータを AI に渡して「表記ゆれ・外れ値・事実との食い違い」を探させる。読み取り専用でシートには一切書きません- 初仕事で、祝日リストの表記の不統一を見つけつつ、2021年の祝日移動（オリンピック特例）を世間知で照合して「この対応は正しい」と言い切りました- 「Excel に AI を載せる」サービスは増えましたが、これは少し違います。自分の道具の部品として AI を配線する話です- Excel と AI は機械としての得意が真逆で、組むと互いの穴がふさがります。「Excel か AI か」ではなく Excel × AI のコンビネーションが本命だと考えています「載せる」と「配線する」Excel で AI を使う手段は、もう珍しくありません。Copilot は Excel に載っていますし、AI アシスタントをうたうアドインもたくさんあります。ただ、それらの多くは「Excel の横にチャット窓が開く」形です。聞けば答えてくれますが、答えは画面の中にあって、こちらの道具や作業の流れとはつながっていません。私がやったのはその逆で、AI をチャット窓から出して、自分の VBA 資産の一部品にすることでした。- AI の答えは、既存の置換処理や退避・復元の仕組みにそのまま流れ込む- AI に渡す材料（数式・シートの見出し・実データ）は、VBA が自動で用意する- 呼び出すのは汎用チャットではなく、「この作業のこの検分をしろ」という定型指示部品なので、見た目は普通の UserForm です。ボタンを押すと数秒〜数十秒で答えが返ってくる。それだけです。でも使ってみると、この「それだけ」が効きます。現物その1：AI数式フォームマクロの次に手を付けたのは数式でした。一般的な Excel 利用者にとっては、マクロより数式のほうが本丸だからです。フォームは三段構えです。- 対象：選択セルの数式が表示される- 頼み：「解説して」「間違いがないかチェックして」「こういう式を作って」の定型コンボ＋自由記入- 答え：AI の回答。式が返ってきたときだけ「適用」ボタンが押せる肝は、式そのものより文脈の渡し方です。数式の意味はシートの文脈が九割なので、VBA 側でこういうダイジェストを組んで一緒に渡します。- 見出し行・列の中身- 式が参照している範囲の実データのサンプル- 同じ式が下に引っ張られている場合は R1C1 で比較して1行に畳む（渡すサイズはセル数ではなくパターン数で決まる）- 空セルに新しい式を作るときは、対象行の実データも渡すこれで「この式は何をしているのか」を聞くと、セル番地の羅列ではなく、見出しの言葉で説明が返ってきます。他人から引き継いだシートの解読には、はっきり効きます。実測で、フル解説が50秒、「結論先・指摘3点まで」と縛った短縮版で25秒ほどです。適用した式は既存のメモリ退避に乗るので、復元ボタン一発で元に戻ります。ここが「配線」の意味で、書き戻しの安全装置はマクロ修正用に作ったものがそのまま使い回せています。現物その2：AI検品フォーム数式の次はデータです。こちらは思い切って読み取り専用にしました。シートには何も書かない。範囲を選んでボタンを押すと、指摘が1行1件で返ってくるだけです。- 対象はフォームを開いた時点の選択範囲（1セルなら表全体に自動拡張）- データは行番号・列記号付きで畳んで AI に渡す（大きい表は先頭300行×30列で区切り、「残りは未検品」と AI にも明示）- 定型指示は13本：表記ゆれ・形式混在・外れ値・重複・空欄・事実照合・列対応・合計・並び順・誤字・敬称統一など- 返しは「セル番地: 指摘内容（根拠）」。確信が持てない指摘には（要確認）が付く書かないので、事故が起きようがありません。配るときにも説明が楽です。初仕事の話最初に検品させたのは祝日リストでした。返ってきた指摘のひとつは「2021/09/20 だけ月のゼロ埋めが他と揃っていない」という表記の不統一。これは普通の検査です。面白かったのはその先で、2021年の祝日は東京オリンピックの特例で海の日などが移動しているのですが、AI はそれを世間知で照合したうえで「この移動の反映は正しい」と言い切りました。日付の形式チェックなら従来の Excel 機能でもできます。しかし「この祝日リストは現実の祝日と合っているか」という事実との照合は、関数にも入力規則にもできない仕事です。ここが AI を部品にする一番の理由だと思っています。三つ並べると見えてくること配管は一本で、変わるのは「何を渡して、何をさせるか」だけです。定型指示のリストは「よく使う頼み方の置き場」で、手打ちで繰り返した指示を定型に昇格させて育てていきます。使うほど自分の仕事に馴染んでいく、というのが載せ物のチャットとの一番の違いです。Excel と AI のコンビネーションの時代三つのフォームを使ううちに、考えが一段進みました。これは「Excel が AI で少し便利になった」という話にとどまらない気がしています。Excel と AI は、機械としての性格が真逆です。- Excel は決定論の機械です。数式もマクロも、一度焼き付けた手順を、何万回でも同じ結果で繰り返します。速くて、確実で、コストはほぼゼロ。ただし「意味」は扱えません。祝日リストの日付の形式は検査できても、「その祝日は現実の祝日と合っているか」には答えられません- AI は確率の機械です。意味と文脈と世間知を扱えます。祝日の移動も、表記のゆれも、見出しの言葉が指すものも分かります。ただし毎回同じ答えが返る保証はなく、大量の反復計算をさせるには遅くて高くつきます得意が真逆だということは、組み合わせると互いの穴がふさがるということです。役割分担はこうなります。- 繰り返す仕事・形を保つ仕事・データの置き場は、Excel が受け持つ- 意味の判断・事実との照合・人間の言葉での説明は、AI が受け持つ- 毎回 AI に計算させる必要はありません。AI に作らせた式やマクロを Excel に焼き付ければ、あとは決定論の機械が黙って走ります今回の検品フォームは、この分担の小さな見本です。範囲を畳んで渡すのは VBA（形の仕事）、祝日の特例を照合するのは AI（意味の仕事）、指摘を受けて直すかどうかを決めるのは人間。三者とも、自分の得意なことしかしていません。もう一つ、大事なことがあります。Excel は、ほとんどの職場のほとんどの机に、すでにあるということです。新しいシステムを入れなくても、いま目の前にある表とファイルのまま、AI という部品を一本配線すればいい。「AI 導入」は大ごとである必要がなくて、手元の道具につなぐだけで始まります。私はこれを家の遊びでやっていますが、この組み合わせ方そのものは、どこの Excel でも同じはずです。ここで、Excel が長年言われてきた悪口を思い出してください。「ブラックボックスだ」「属人化する」「作った人が辞めたら誰にも分からなくなる」。もっともに聞こえますが、根っこは一つです。中身を読める人が、そばにいなかった。それだけのことでした。その根っこが、消えました。AI は VBA も数式も普通に読みます。今回の AI数式フォームがやっているのは、まさに「他人の作った式を、見出しの言葉で説明させる」ことです。作った本人がいなくても、ブックを開いて聞けば、中身が言葉になって返ってくる。ブラックボックスと呼ばれていた箱は、もう開くのです。だから「AI が来たから Excel は終わる」とは、私は思っていません。逆です。中身が読めるようになった以上、属人化を理由に Excel を遠ざける理屈は、もう成り立ちません。現場のあちこちにすでにあって、誰でも触れて、AI が中身の説明も検品もしてくれる。この資産の値打ちは、これから見直されていくはずです。Excel か AI かではなく、Excel と AI のコンビネーションの時代だと考えています。正直な線引き- 動かすには Claude Code CLI（またはGemini CLI）のセットアップとログインが要ります。誰のExcelでもすぐ動くものではありません- AI の指摘を鵜呑みにはしません。指摘→実測で再現→採用、の順を守っています（再現しない一般論の指摘は捨てます）- このフォーム入りのブックはまだ公開していません。改良が続いているためです次回予告三部作の構想でいうと、検品の次は「AI要約説明」（表を渡して、何の表かを説明させる）、その次が「AI文章」（A4定型のレイアウトを崩さずに文面だけ AI に書かせる）です。検品フォームの複製でほぼ作れる見込みなので、できたらまた書きます。と、書いた後で実際にやってみたら、だんだんすごいものができてしまったかもしれない。ちょっと震えてしまっています（笑）",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "Zenn",
+      "published_at": "2026-07-25T01:35:42Z"
+    },
+    {
+      "url": "https://qiita.com/arthiarumugam/items/7cf65e9a38aba8107ae7",
+      "title_ja": "AIエージェント比較CLI「whatbroke」",
+      "summary_ja": "AIエージェントのモデルやプロンプトを変更した際、挙動の変化を自動で検出するCLIツール「whatbroke」が公開されました。ツール呼び出しの変化やコスト、レイテンシなどを比較し、意図しないバグを防ぎます。",
+      "key_points": [
+        "AIエージェントの挙動変化を検出するCLIツール。",
+        "モデル変更時のツール呼び出しや引数の変化を比較。",
+        "CI/CDに組み込み可能で、開発効率を向上。"
+      ],
+      "translation_ja": "モデルを新しいものに差し替えたとき、返答をいくつか読んで「大丈夫そう」で済ませていませんか。私はそれで痛い目を見ました。\n\nエージェントのモデルを3分の1のサイズのものに載せ替えて試したとき、返答は全部それらしく見えたのに、裏では `cancel_subscription` のツール呼び出しが消えていました。エージェントは「解約が完了しました」と言い続けていました。テキストのdiffではこれは見つかりません。言葉は正しくて、挙動が壊れていたからです。\n\nそれで `whatbroke` というCLIを作りました。2つの実行トレースを比較して、どのツール呼び出しが消えたか、引数がどう変わったか、コストとレイテンシがどれだけ動いたか、最終出力がどう変わったかを報告します。\n\nリポジトリ: https://github.com/arthi-arumugam-git/whatbroke\n\n### インストール\n\n```bash\nnpm install -g whatbroke-cli\n```\n\n`npx` でそのまま実行もできます。\n\n### 使い方\n\n- 変更前のエージェントでトレースを記録する\n- 何かを変える(モデル、プロンプト、フレームワークのバージョン、なんでも)\n- 同じシナリオでもう一度記録する\n- diffを取る\n\n```bash\nwhatbroke diff before.jsonl after.jsonl\n```\n\nトレースの記録はプロキシが一番手軽です。コードの変更はいりません。\n\n```bash\nwhatbroke record --out traces/current.jsonl\nOPENAI_BASE_URL=http://127.0.0.1:4141/v1 node my-agent.js\n# または\nANTHROPIC_BASE_URL=http://127.0.0.1:4141 node my-agent.js\n```\n\nLLM呼び出し、ツール呼び出し、最終出力がすべてJSONLに記録されます。ストリーミングもそのまま通ります。\n\n### 何が検出されるか\n\n`breaking` が出ると終了コード1になるので、そのままCIに入れられます。\n\n```yaml\n- run: node run-agent-suite.js --out traces/current.jsonl\n- run: npx whatbroke-cli diff traces/baseline.jsonl traces/current.jsonl --md >> \"$GITHUB_STEP_SUMMARY\"\n```\n\n### エージェントは毎回同じ動きをしない問題\n\n同じシナリオを3回ずつ記録して、`run id` に `#1 #2 #3` を付けると、`whatbroke` が全組み合わせを比較して各検出に発生率を付けます。\n\n```\n! issue_refund called with different args (amount) (6/9 run pairs)\n```\n\n変更前のサンプル同士でも起きている変動は「元からフレーキー」として格下げされます。残るのが本物のシグナルです。\n\n### 既存トレースの取り込み\n\nLangfuseやLangSmith、OpenTelemetry(GenAIセマンティック規約)のエクスポートがあれば、再記録せずに変換できます。\n\n```bash\nwhatbroke import traces-export.json\n```\n\n### evalとの違い\n\n`eval` は各バージョンをルーブリックで採点します。`whatbroke` は別の質問に答えます。この2つのバージョンの間で、ツール呼び出しレベルで正確に何が変わったのか、という質問です。ルーブリックを書く必要も、`judge` 用のAPIコストもありません。\n\n決定的でオフライン動作、APIキーも不要です。トレースはローカルの外に出ません。\n\n英語版はこちらに書きました: https://dev.to/arthiarumugam/the-20-minute-check-i-run-before-swapping-an-agent-to-a-new-model-1kgi\n\n日本語は翻訳ツールの力を借りています。おかしな表現があればコメントで教えてください。フィードバックやIssueも歓迎です。",
+      "category": "ツール",
+      "importance": 5,
+      "source": "Zenn",
+      "published_at": "2026-07-25T02:25:55Z"
+    },
+    {
+      "url": "https://github.com/palmier-io/palmier-pro",
+      "title_ja": "Palmier Pro: AI動画編集",
+      "summary_ja": "AI機能を統合したmacOS向けオープンソース動画編集ソフト。タイムライン内でAIを使って動画や画像を生成・編集でき、ClaudeなどのAIとも連携可能。MacユーザーがAIでクリエイティブな作業を始めるのに最適です。",
+      "key_points": [
+        "AI統合型macOS動画エディタ",
+        "タイムライン内でAI生成・編集",
+        "Claudeなどと連携可能"
+      ],
+      "translation_ja": "Palmier Proは、AIのために構築されたオープンソースのmacOS向け動画編集ソフトウェアです。このアプリケーションは、ユーザーとAIエージェントがタイムライン内で共同で動画を生成・編集できることを特徴としています。\n\n## 主な機能と特徴\n- **AI統合**: **Seedance**、**Kling**、**Nano Banana Pro**などの最先端モデルを使用して、タイムラインエディタ内で直接動画や画像を生成できます。\n- **エージェント連携**: Claude、Codex、CursorなどのAIエージェントと**MCP (Managed Compute Platform)**を介して接続し、同じプロジェクトで共同作業が可能です。アプリを開くと、`http://127.0.0.1:19789/mcp`でMCPサーバーが公開されます。\n- **オープンソース**: 動画エディタ本体、MCPサーバー、エージェントチャット機能は完全にオープンソース（GPLv3ライセンス）です。ただし、生成AI処理機能はクローズドソースであり、利用にはログインとサブスクリプションが必要です。\n- **無料利用**: エディタ自体は無料でダウンロードでき、ログインなしでCapCutやAdobe Premiereのような動画エディタとして使用できます。MCPサーバーも無料で利用でき、Claude Code/DesktopやCursorと連携してタイムラインエディタを操作する実験が可能です。\n- **対応プラットフォーム**: Apple Silicon搭載のmacOS 26 (Tahoe) のみ。\n\nPalmier Proは、AIを活用したクリエイティブな動画制作をmacOSユーザーに提供することを目指しており、特にAIエージェントとの協調作業に焦点を当てています。",
+      "category": "ツール",
+      "importance": 4,
+      "source": "HackerNews",
+      "published_at": "2026-07-23T15:11:37Z"
+    },
+    {
+      "url": "https://qiita.com/voorai/items/178ceb3ffaf54ae9bf50",
+      "title_ja": "AI写真編集の「差分」活用術",
+      "summary_ja": "AIでの写真編集をコードの差分のように捉え、変更点と保持点を明確にする方法を解説。一度に一つの変更に絞ることで、より意図通りの結果を得るための具体的なプロンプト作成やレビュー方法が学べます。",
+      "key_points": [
+        "AI写真編集の新しいアプローチ",
+        "変更点と保持点を明確化",
+        "意図通りの結果を得るプロンプト術"
+      ],
+      "translation_ja": "Write an AI photo edit like a code diff: identify what changes, what must remainbyte-for-byte equivalent to the viewer, and how you will test the result. Onecontrolled change per pass is easier to debug than a “make it better” rewrite.This is an illustrative edit-spec diagram, not a Voor output.Define the invariant setFor a product photograph, an edit request can be represented as:```json{\"change\": \"replace the blue paper background with warm light gray\",\"preserve\": [\"red ceramic vase shape\",\"glaze texture and chips\",\"camera angle and crop\",\"contact shadow\",\"label geometry\"],\"reject_if\": [\"vase color changes\",\"new handle appears\",\"shadow direction moves\",\"label text is rewritten\"]}```Upload an image you own to the AI Photo Editor.The July 25 check showed Seedream 4.5, an image input, prompt, Match Input Imageselected, alternative ratios, Public visibility, and 10 credits at that default.Convert the diff into a promptEdit only the background. Replace the blue seamless paper with warm light gray(approximately #D8D2C8). Preserve the red ceramic vase exactly: silhouette, height,rim, glaze texture, small chips, label geometry, camera angle, crop, and contactshadow. Keep the existing soft light from upper left. Do not add props, handles,reflections, text, or new surface damage. Match the input image dimensions.Review as a visual regressionOverlay the output on the input at 50% opacity. The intended background should change;the silhouette should not wobble. Toggle between images and inspect the rim, label,chips, and contact shadow. At 100% zoom, look for regenerated texture around theobject boundary.Suggested acceptance checklist:- Exactly one requested region changed.- Subject geometry and crop are stable.- Light and shadow direction still agree.- Existing text is unchanged and readable.- No new object or decorative detail appeared.If the whole image is restyled, move “Edit only” to the first sentence and shortenthe change. If the subject color shifts, include a concrete color description in thepreserve list. If edge halos appear, request a natural transition and avoid changingboth background color and lighting in the same pass. If text changes, mask or restoreit in a deterministic editor.Scope and privacyGenerative editing is not pixel-preserving, even when the prompt says “exactly.”Legal documents, measurements, evidence photos, and safety-critical imagery requirenon-generative tools and provenance. Public visibility is inappropriate for privatephotos. Credits and selected models may change; verify the current form beforerunning the edit.When the diff has one change and a testable invariant set, run a single edit and compare it against the original.",
+      "category": "活用事例",
+      "importance": 4,
+      "source": "Zenn",
+      "published_at": "2026-07-25T03:40:19Z"
+    },
+    {
+      "url": "https://platform.claude.com/cookbook/",
+      "title_ja": "Claudeクックブック",
+      "summary_ja": "Claude APIやエージェントの具体的な活用例を多数紹介するレシピ集。多機能なAIエージェントの構築方法や、既存システムとの連携、データ分析、画像解析など、様々な応用方法が学べます。",
+      "key_points": [
+        "Claudeエージェントの多様な活用例",
+        "プログラムによるツール連携方法",
+        "高度なAIシステム構築のヒント"
+      ],
+      "translation_ja": "Claude Cookbookは、AnthropicのAIモデルであるClaudeを効果的に活用するための実践的なガイド集です。このクックブックは、開発者がClaudeのAPI、エージェント、SDKを使って様々なアプリケーションを構築するための具体的な「レシピ」を提供します。\n\n## プログラムによるツール呼び出しとエージェントの構築\n- **DeepSearchQA**や**BrowseComp**のスコアを再現するメッセージAPIハーネスの構築。\n- プログラムによるツール呼び出し、サーバーサイドの圧縮、タスク予算の管理。\n- **Fable 5**での安全分類器ブロックを検出し、**Opus 4.8**へのフォールバック戦略。\n\n## マルチエージェントパターン\n- 共有ハブを介したピアメッセージングを持つ固定Nエージェントチームや、動的に生成される非同期サブエージェントなど、非同期マルチエージェントパターンの実装。\n- `thread_created` / `thread_message_received` イベントタイプ、および役割ごとのツールスコープ。\n\n## エージェントのデプロイと運用\n- 研究エージェントをDocker、Modal、Kubernetesの3つの運用成熟度ティアでデプロイする方法。\n- **Outcomes**を使用した評価・修正ループの構築。ライターが引用された研究概要を作成し、ステートレスな評価者が各URLをフェッチし、各引用をルーブリックに対してチェックし、フィードバックが修正を促す。\n- Claude Managed Agentsにメモリストアを与え、ユーザーの好みを学習・記憶させる。\n- Claude Agent SDKで脆弱性発見エージェントを構築し、Cターゲットの脅威モデルを作成し、組み込みファイルツールでメモリ安全性のバグを探索し、構造化されたレポートに結果をトリアージする。\n- Claudeをオンコールフローに組み込み、アラート発生時にエージェントがログとランブックを読み取り、根本原因を特定し、修正PRを開き、承認を待ってマージする。\n\n## データ分析とレポート作成\n- サンドボックス環境とファイルマウントを使用して、CSVをインタラクティブなチャートを含むナラティブなHTMLレポートに変換するアナリストの構築。\n- CSVを持つボットをメンションして、スレッド内で分析レポートを取得し、同じセッションで複数ターンのフォローアップを行う。\n\n## 高度なエージェント機能\n- 構造化されていないテキストからClaudeを使用してエンティティ抽出、関係マイニング、重複排除、マルチホップグラフクエリを行う**知識グラフ**の構築。\n- 長時間実行されるエージェントのためのコンテキストエンジニアリング戦略の比較。\n- OpenAI Agents SDKアプリをClaude Agent SDKに移植する方法。\n- 読み書き可能なMCPツールを備えたインシデント対応エージェントの構築。\n- バックグラウンドスレッドとプロンプトキャッシュを使用して、インスタントセッションメモリ圧縮で長時間実行されるClaude会話を管理する。\n- Claudeにコード実行環境でツールをプログラム的に呼び出すコードを書かせることで、レイテンシとトークン消費を削減する。\n- セマンティック埋め込みを使用して動的なツール発見を行い、Claudeアプリケーションを数千のツールにスケールする。\n- 会話履歴を自動的に圧縮することで、長時間実行されるエージェントワークフローのコンテキスト制限を管理する。\n- ElevenLabsを音声認識と音声合成に組み合わせた低レイテンシの音声アシスタントの構築。\n- Claudeにクロップツールを与え、画像領域をズームしてチャート、ドキュメント、図の詳細な分析を行う。\n- ClaudeにExcel、PowerPoint、PDFのスキルを使用して財務ダッシュボードとポートフォリオ分析を構築する。\n- カスタムスキルを作成、デプロイ、管理し、Claudeを専門的な組織ワークフローで拡張する。\n- Claude Code SDKとWebSearchを使用して自律的な研究を行う研究エージェントを構築する。\n\nこのクックブックは、Claudeの機能を最大限に引き出し、複雑なAIアプリケーションを設計・実装するための具体的な手順とコード例を提供します。",
+      "category": "ツール",
+      "importance": 2,
+      "source": "HackerNews",
+      "published_at": "2026-07-24T05:09:15Z"
+    }
+  ]
+}
