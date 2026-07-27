@@ -1561,6 +1561,11 @@
   /* ── Read tracking (FR-07) ── */
   const READ_ARTICLES_KEY = 'neura_read_articles';
 
+  // scripts/summarize.py の normalize_url() と同じルール（末尾スラッシュ・クエリパラメータ除去）
+  function normalizeUrl(url) {
+    return url.replace(/\/+$/, '').split('?')[0];
+  }
+
   function getReadArticles() {
     try {
       const parsed = JSON.parse(localStorage.getItem(READ_ARTICLES_KEY) || '[]');
@@ -1571,14 +1576,15 @@
   }
 
   function isArticleRead(url) {
-    return getReadArticles().includes(url);
+    return getReadArticles().includes(normalizeUrl(url));
   }
 
   function markArticleRead(url) {
     try {
+      const key = normalizeUrl(url);
       const list = getReadArticles();
-      if (list.includes(url)) return false;
-      list.push(url);
+      if (list.includes(key)) return false;
+      list.push(key);
       localStorage.setItem(READ_ARTICLES_KEY, JSON.stringify(list));
       return true;
     } catch (e) {
