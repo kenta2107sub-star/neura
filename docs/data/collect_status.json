@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-07-31T04:01:00Z",
+  "run_at": "2026-08-01T04:00:55Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
@@ -7,7 +7,7 @@
     },
     "Reddit r/artificial": {
       "status": "ok",
-      "count": 21
+      "count": 25
     },
     "Reddit r/MachineLearning": {
       "status": "failed",
@@ -31,7 +31,7 @@
     },
     "はてなブックマーク IT": {
       "status": "ok",
-      "count": 14
+      "count": 17
     },
     "Qiita AI": {
       "status": "ok",
