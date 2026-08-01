@@ -246,6 +246,7 @@
       border: 1px solid transparent;
       border-bottom: 1px solid var(--border);
       transition: background 0.18s, border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+      position: relative;
     }
     .date-card:hover {
       background: #191919;
@@ -403,11 +404,13 @@
     .date-card--nodata .article-count { color: var(--sub); }
 
     .date-card-right {
+      position: absolute;
+      top: 12px;
+      right: 14px;
       display: flex;
       flex-direction: column;
       align-items: flex-end;
       gap: 8px;
-      flex-shrink: 0;
     }
     .date-card-right .cat-bar-wrap {
       width: 80px;
@@ -424,6 +427,13 @@
       grid-template-columns: 1fr 1fr;
       gap: 3px 20px;
       margin-top: 4px;
+    }
+    @media (max-width: 640px) {
+      .date-titles {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
     }
     .date-title-row {
       display: flex;
