@@ -13,9 +13,13 @@ venv/
 # OS
 .DS_Store
 
-# Claude Code 設定（コミット禁止）
+# 旧Claude Code設定
 CLAUDE.md
-progress.md
+
+# Codexの一時レポート（運用設定とprogress.mdはGit管理する）
+test_report.md
+code_review_report.md
+flow_retrospective.md
 
 # 一時ファイル
 /tmp/neura_*.json

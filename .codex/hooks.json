@@ -1,0 +1,18 @@
+{
+  "description": "Develop Folder の品質ゲート",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "dir=\"$PWD\"; while [ ! -f \"$dir/.codex/hooks/readme-drift-check.py\" ]; do parent=\"$(dirname \"$dir\")\"; [ \"$parent\" = \"$dir\" ] && exit 0; dir=\"$parent\"; done; [ -e \"$dir/.git\" ] || exit 0; /usr/bin/python3 \"$dir/.codex/hooks/readme-drift-check.py\"",
+            "timeout": 15,
+            "statusMessage": "progress.md と README の整合性を確認中"
+          }
+        ]
+      }
+    ]
+  }
+}
