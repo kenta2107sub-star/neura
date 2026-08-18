@@ -2177,32 +2177,37 @@
   let prevSchedules = null;       // 最後にロードした notify_schedules（変更検知用）
   let cachedGeminiPrompt = null;  // UI に出さないが保存時に引き継ぐ
 
+  function scheduleSyncSnapshot(schedules) {
+    return schedules.map(({ hour, enabled, cron_job_id }) => ({ hour, enabled, cron_job_id }));
+  }
+
   /* cron-job.org スケジュール更新 */
   async function cronJobOrgUpdate(schedules) {
     const apiKey = getCronJobKey();
-    if (!apiKey) return;
-    for (const slot of schedules.filter(s => s.enabled && s.cron_job_id)) {
+    if (!apiKey) return false;
+    for (const slot of schedules.filter(s => s.cron_job_id)) {
+      const job = { enabled: slot.enabled };
+      if (slot.enabled) {
+        job.schedule = {
+          timezone: 'Asia/Tokyo',
+          hours:   [slot.hour],
+          minutes: [0],
+          mdays:   [-1],
+          months:  [-1],
+          wdays:   [-1]
+        };
+      }
       const res = await fetch(`https://api.cron-job.org/jobs/${slot.cron_job_id}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          job: {
-            schedule: {
-              timezone: 'Asia/Tokyo',
-              hours:   [slot.hour],
-              minutes: [0],
-              mdays:   [-1],
-              months:  [-1],
-              wdays:   [-1]
-            }
-          }
-        })
+        body: JSON.stringify({ job })
       });
       if (!res.ok) throw { code: 'ERR-14' };
     }
+    return true;
   }
 
   /* localStorage 認証情報 */
@@ -2357,7 +2362,7 @@
       </div>`;
     }).join('');
     schedules.forEach((s, i) => { document.getElementById(`sched-${i}-h`).value = s.hour; });
-    prevSchedules = schedules.map(s => ({ ...s }));
+    prevSchedules = scheduleSyncSnapshot(schedules);
 
     // keywords
     const kw = config.keywords || { en: [], ja: [] };
@@ -2561,17 +2566,25 @@
 
     // notify_schedules が変更された場合のみ cron-job.org を更新する
     // daily.yml は workflow_dispatch のみで schedule ブロックを持たないため更新不要
-    const schedulesChanged = JSON.stringify(config.notify_schedules) !== JSON.stringify(prevSchedules);
+    const currentSchedules = scheduleSyncSnapshot(config.notify_schedules);
+    const schedulesChanged = JSON.stringify(currentSchedules) !== JSON.stringify(prevSchedules || []);
     if (schedulesChanged) {
-      prevSchedules = config.notify_schedules.map(s => ({ ...s }));
       try {
-        await cronJobOrgUpdate(config.notify_schedules);
+        const didSync = await cronJobOrgUpdate(config.notify_schedules);
+        if (didSync) {
+          prevSchedules = currentSchedules;
+          hideBanner();
+        }
       } catch (e) {
-        showBanner(ERROR_MESSAGES['ERR-14'], true);  // config は保存済みのため return しない
+        showBanner(ERROR_MESSAGES['ERR-14'], true);  // config は保存済み
+        btn.disabled = false;
+        btn.textContent = '[ 保存する ]';
+        return;
       }
+    } else {
+      hideBanner();
     }
 
-    hideBanner();
     showToast('✅ 設定を保存しました。次回の定時実行から反映されます。');
     btn.disabled = false;
     btn.textContent = '[ 保存する ]';

@@ -37,7 +37,7 @@ Neura は GitHub Actions を起点に、Hacker News・Reddit・各種 RSS フィ
 - **未読リマインド**：前日の配信を見ていない場合、翌朝 9 時に Discord へリマインドを送信
 - **週次ダイジェスト**：毎週土曜 12 時に、直近 7 日分の件数サマリー・カテゴリ内訳・注目記事トップ 5 を配信
 - **アーカイブサイト**：GitHub Pages で過去ダイジェストを日付別に閲覧可能。全文翻訳のモーダル表示・キーワード検索対応
-- **ブラウザ設定画面**：GitHub Contents API 経由で収集ソース・キーワード・Gemini プロンプト・実行時刻（最大 3 スロット）を変更可能（PAT を localStorage に保存。cron-job.org 連携で時刻の自動同期も可能）
+- **ブラウザ設定画面**：GitHub Contents API 経由で収集ソース・キーワード・Gemini プロンプト・実行時刻（最大 3 スロット）を変更可能（PAT を localStorage に保存。cron-job.org 連携で時刻とスロットの有効 / 無効を自動同期）
 
 ---
 
@@ -130,7 +130,8 @@ GitHub Actions での本番実行：リポジトリの **Actions** タブ → �
 - AIキーワードフィルタの編集
 - Gemini プロンプトのカスタマイズ
 - 実行スケジュールの変更（最大 3 スロット、JST 0〜23 時・ジャンル・通知件数を個別設定）
-  - cron-job.org の API キー・ジョブ ID を設定すると、時刻変更が cron-job.org 側にも自動同期される（未連携の場合は cron-job.org の管理画面で手動更新が必要）
+  - cron-job.org の API キー・ジョブ ID を設定すると、時刻とスロットの有効 / 無効が cron-job.org 側にも自動同期される。無効にしたスロットの対応ジョブは停止する（未連携の場合は cron-job.org の管理画面で手動更新が必要）
+  - cron-job.org との同期に失敗した場合は、設定は保存済みでも外部ジョブは更新されない。API キーとジョブ ID を確認して、再度保存する
 
 ---
 
@@ -166,7 +167,7 @@ neura/
 │   ├── archive.py             # JSON 保存・git コミット
 │   ├── remind.py              # 未読リマインド送信
 │   └── weekly_digest.py       # 週次ダイジェスト送信
-├── tests/                     # pytest テスト（81 件）
+├── tests/                     # Python pytest テスト（81 件）と Node.js 回帰テスト（8 件）
 ├── .env.example               # 環境変数テンプレート
 ├── requirements.txt
 └── README.md

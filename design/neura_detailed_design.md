@@ -1322,80 +1322,99 @@ async function fetchSourceStatus() {
 #### cron-job.org スケジュール更新（cron-job.org API）
 
 ```javascript
-// enabled かつ cron_job_id が設定されているスロットをすべて更新する
-// APIキー未設定（空文字）の場合は何もしない（optional 機能）
-// 失敗時: ERR-14 をスロー（daily.yml は更新済みのため saveSettings はエラー表示だけして継続）
+// cron_job_id が設定されている全スロットを同期する。
+// 有効スロットは enabled:true とschedule、無効スロットは enabled:false のみをPATCHする。
+// APIキー未設定（空文字）の場合は同期をスキップして false を返す（optional 機能）。
+// 1件でも失敗した場合はERR-14をスローし、呼び出し側は同期済み状態を更新しない。
 async function cronJobOrgUpdate(schedules) {
     const apiKey = getCronJobKey();
-    if (!apiKey) return;
-    for (const slot of schedules.filter(s => s.enabled && s.cron_job_id)) {
+    if (!apiKey) return false;
+    for (const slot of schedules.filter(s => s.cron_job_id)) {
+        const job = { enabled: slot.enabled };
+        if (slot.enabled) {
+            job.schedule = {
+                timezone: 'Asia/Tokyo',
+                hours:  [slot.hour],
+                minutes: [0],
+                mdays:   [-1],
+                months:  [-1],
+                wdays:   [-1]
+            };
+        }
         const res = await fetch(`https://api.cron-job.org/jobs/${slot.cron_job_id}`, {
             method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                job: {
-                    schedule: {
-                        timezone: 'Asia/Tokyo',
-                        hours:  [slot.hour],
-                        minutes: [0],
-                        mdays:   [-1],
-                        months:  [-1],
-                        wdays:   [-1]
-                    }
-                }
-            })
+            body: JSON.stringify({ job })
         });
         if (!res.ok) throw { code: 'ERR-14' };
     }
+    return true;
 }
 ```
 
-**cron-job.org API補足**：`PATCH /jobs/{jobId}` のリクエストボディは上記 `job.schedule` 構造を使用する。`timezone: 'Asia/Tokyo'` を指定することで JST 時刻をそのまま `hours` に渡せる。`-1` は cron の `*`（すべて）を意味する。
+**cron-job.org API補足**：`PATCH /jobs/{jobId}` は変更するフィールドだけを含む `job` の差分を受け付ける。有効スロットでは `job.enabled: true` と `job.schedule` を、無効スロットでは `job.enabled: false` のみを送信する。`timezone: 'Asia/Tokyo'` を指定することで JST 時刻をそのまま `hours` に渡せる。`-1` は cron の `*`（すべて）を意味する。
 
 #### 保存フロー（バリデーション含む）
 
 ```javascript
+// 読み込み成功時にも同じスナップショット形式で初期化する:
+// prevSchedules = scheduleSyncSnapshot(loadedConfig.notify_schedules);
+function scheduleSyncSnapshot(schedules) {
+    return schedules.map(({ hour, enabled, cron_job_id }) =>
+        ({ hour, enabled, cron_job_id })
+    );
+}
+
+// 呼び出し側は返却値を保持する:
+// prevSchedules = await saveSettings(config, prevSchedules);
 async function saveSettings(config, prevSchedules) {
     // ERR-12: 有効ソースの URL が空または https:// 以外
     const invalidSrcs = config.sources.filter(s => s.enabled && !s.url.startsWith('https://'));
     if (invalidSrcs.length > 0) {
         highlightInvalidUrls();   // 該当行の URL 欄を赤枠表示
         showSrcError('ERR-12');
-        return;
+        return prevSchedules;
     }
     // 少なくとも1スロットが enabled でなければならない（ERR-13）
     if (!config.notify_schedules.some(s => s.enabled)) {
         showSchedError('ERR-13');
-        return;
+        return prevSchedules;
     }
     const { pat } = getGithubCreds();
-    if (!pat) { showBanner('PAT未設定'); return; }   // 保存ボタンは通常disabled
+    if (!pat) { showBanner('PAT未設定'); return prevSchedules; }   // 保存ボタンは通常disabled
 
     try {
         const { sha } = await ghGetConfig();   // 最新shaを取得
         await ghPutConfig(config, sha);
     } catch (e) {
         showBanner(ERROR_MESSAGES[e.code] || ERROR_MESSAGES['ERR-11']);
-        return;
+        return prevSchedules;
     }
 
-    // notify_schedules が変更された場合のみ cron-job.org を更新する
-    // ※ daily.yml は workflow_dispatch のみで schedule ブロックを持たないため ghPutWorkflow() は呼ばない
-    const schedulesChanged = JSON.stringify(config.notify_schedules.map(s => ({hour: s.hour, enabled: s.enabled})))
-        !== JSON.stringify((prevSchedules || []).map(s => ({hour: s.hour, enabled: s.enabled})));
+    // 時刻・有効状態・ジョブIDの変更時だけcron-job.orgを同期する。
+    // daily.yml は workflow_dispatch のみで schedule ブロックを持たないため ghPutWorkflow() は呼ばない。
+    const currentSchedules = scheduleSyncSnapshot(config.notify_schedules);
+    const schedulesChanged = JSON.stringify(currentSchedules)
+        !== JSON.stringify(prevSchedules || []);
     if (schedulesChanged) {
-        // cron-job.org APIキーが設定されている場合のみ更新（任意機能）
+        // APIキー未設定時は同期をスキップする。prevSchedulesは更新せず、次回保存時に再試行する。
         try {
-            await cronJobOrgUpdate(config.notify_schedules);
+            const didSync = await cronJobOrgUpdate(config.notify_schedules);
+            if (didSync) {
+                prevSchedules = currentSchedules; // 全対象ジョブのPATCH成功後だけ更新
+                hideBanner(); // ERR-14は、後続の全対象ジョブ同期が成功した場合のみ解除する
+            }
         } catch (e) {
-            showBanner(ERROR_MESSAGES['ERR-14']);  // config は保存済みのため return しない
+            showBanner(ERROR_MESSAGES['ERR-14'], true);  // config は保存済み
+            return prevSchedules;                  // 成功トーストでERR-14を直後に消さない
         }
     }
 
     showToast('✅ 設定を保存しました。次回の定時実行から反映されます。');
+    return prevSchedules;
 }
 ```
 
@@ -1552,13 +1571,7 @@ requests==2.31.0
 name: Neura Daily Digest
 
 on:
-  schedule:
-    # notify_schedules の enabled:true スロット数分の cron エントリが生成される（最大3件）
-    # 設定画面（SCR-04）で notify_schedules が変更されると自動で書き換えられる
-    - cron: '0 4 * * *'    # スロット1: 13:00 JST（デフォルト）
-    # - cron: '0 11 * * *' # スロット2: 20:00 JST（有効にすると追加）
-    # - cron: '0 23 * * *' # スロット3: 08:00 JST（有効にすると追加）
-  workflow_dispatch:         # 手動実行（テスト用）
+  workflow_dispatch:         # cron-job.org からの定時起動、およびActions画面での手動実行
 
 jobs:
   daily-digest:
@@ -1619,14 +1632,14 @@ jobs:
 | ERR-10 | FR-06 | フロントエンド（SCR-04） | GitHub API 404（リポジトリ未発見） | バナー表示：`"リポジトリが見つかりません。Owner / Repo の設定を確認してください。"` |
 | ERR-11 | FR-06 | フロントエンド（SCR-04） | その他HTTP/ネットワークエラー | バナー表示：`"設定の保存に失敗しました。しばらく後に再試行してください。"` |
 | ERR-12 | FR-06 | フロントエンド（SCR-04） | URL が空または `https://` 以外 | ソースセクション上部に表示：`"URLが未入力またはhttps://で始まっていないソースがあります。"` 該当行URL欄を赤枠表示 |
-| ERR-13 | FR-06 | フロントエンド（SCR-04） | `.github/workflows/daily.yml` の PUT 失敗（権限不足・置換失敗等） | バナー表示：`"設定は保存しましたが、実行時刻の更新に失敗しました。PATに 'workflow' スコープがあるか確認してください。"`（config.json は保存済み） |
-| ERR-14 | FR-06 | フロントエンド（SCR-04） | cron-job.org API の PATCH 失敗（APIキー無効・ジョブID誤り・CORS等） | バナー表示：`"設定は保存しましたが、cron-job.org のスケジュール更新に失敗しました。APIキーとジョブIDを確認してください。"`（config.json・daily.yml は保存済み） |
+| ERR-13 | - | - | 欠番（`daily.yml` のcron式を更新する旧仕様を廃止したため未使用） | - |
+| ERR-14 | FR-06 | フロントエンド（SCR-04） | cron-job.org API の PATCH 失敗（APIキー無効・ジョブID誤り・CORS等） | バナー表示：`"設定は保存しましたが、cron-job.org のスケジュール更新に失敗しました。APIキーとジョブIDを確認してください。"`。`config.json` は保存済みだが、成功トーストで直後に消さない。次回以降に対象全ジョブの同期が成功した場合のみ解除する |
 
 > ERR-04〜07はすべてGitHub Actionsのログおよびワークフロー失敗通知で検知する。
 > - ERR-04・ERR-05：Pythonスクリプトのexit(1)によりワークフローが失敗状態になる。GitHub Actionsのデフォルト失敗通知（メール等）で検知する
 > - ERR-06：`continue-on-error: true` により後続のarchive.pyは実行される。Discordへのエラー通知はDiscord自体が宛先のため実装しない
 > - ERR-07：gitコミット失敗はGitHub Actionsのステップログで確認する
-> - ERR-08〜12・ERR-13：設定画面（SCR-04）のブラウザ内エラー。バナーまたはフィールド直下に表示する。
+> - ERR-08〜12・ERR-14：設定画面（SCR-04）のブラウザ内エラー。バナーまたはフィールド直下に表示する。ERR-13は欠番である。
 > - `fetchLastRunStatus()`：PAT 設定済み時に `GET /repos/{owner}/{repo}/actions/workflows/daily.yml/runs?per_page=1` を呼び出し、`workflow_runs[0].conclusion` と `created_at` を `#src-run-status` 要素に反映する。失敗時は非表示（サイレント）。
 > - なお `config/config.json` の不在・パース失敗はエラーではなくデフォルト値で続行する（`config_loader.py`・`[WARN]`）。
 

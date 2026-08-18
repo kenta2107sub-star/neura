@@ -420,7 +420,7 @@ SCR-02（日次詳細）:
 ### FR-06：設定管理
 
 #### 概要（1行）
-ブラウザの設定画面からニュース収集設定（ジャンル・ソース・Geminiプロンプト・キーワードフィルタ・通知スケジュール×最大3件・通知件数上限）を編集し、GitHub Contents API 経由で `config/config.json` および `.github/workflows/daily.yml` をリポジトリに直接コミットする。
+ブラウザの設定画面からニュース収集設定（ジャンル・ソース・Geminiプロンプト・キーワードフィルタ・通知スケジュール×最大3件・通知件数上限）を編集し、GitHub Contents API 経由で `config/config.json` をリポジトリに直接コミットする。通知スケジュールは cron-job.org の対応ジョブへ同期する。
 
 #### 対応する画面
 - `SCR-04`：設定画面
@@ -449,17 +449,18 @@ SCR-02（日次詳細）:
 3. `PUT https://api.github.com/repos/{owner}/{repo}/contents/config/config.json` を fetch する
    - リクエストボディ：`{ message: "chore: update config", content: {Base64}, sha: {現在のsha} }`
    - Authorization ヘッダーに `Bearer {PAT}` を付与する
-4. `notify_schedules` が変更されていた場合、cron-job.org API で各スロットのジョブ時刻を更新する（`cronJobOrgUpdate()`）
-   - `enabled: true` かつ `cron_job_id` が設定されているスロットを対象とする
-   - `localStorage` の `neura_cronjob_apikey`（cron-job.org APIキー）を Authorization ヘッダーに付与する
-   - cron-job.org API（`PATCH https://api.cron-job.org/jobs/{cron_job_id}`）で `schedule.hours` を新しい JST 時刻に更新する
-   - 失敗時：ERR-14 を表示する（config.json の保存は成功済みのため別エラーとして扱う）
-5. 全て成功時：「設定を保存しました」トーストを表示する
+4. `notify_schedules` の時刻・有効状態・`cron_job_id` が変更されていた場合、`cron_job_id` が設定された**全スロット**を cron-job.org API で同期する（`cronJobOrgUpdate()`）
+   - `localStorage` の `neura_cronjob_apikey`（cron-job.org APIキー）を Authorization ヘッダーに付与する。APIキー未設定時は外部同期をスキップし、`config.json` の保存は成功とする
+   - 有効スロットは cron-job.org API（`PATCH https://api.cron-job.org/jobs/{cron_job_id}`）へ `job.enabled: true` と、新しい JST 時刻を持つ `job.schedule` を送信する
+   - 無効スロットも同じくPATCHし、`job.enabled: false` を送信して、対応する外部ジョブを必ず停止する。`schedule` は送信しない
+   - 全対象ジョブのPATCHが成功した場合に限り、画面内の `prevSchedules` を今回同期したスケジュール情報へ更新する。APIキー未設定または1件でもPATCHに失敗した場合は更新しない
+   - 失敗時：ERR-14 を表示する。`config.json` の保存は成功済みだが、成功トーストでERR-14を直後に消してはならない。ERR-14は後続の全対象ジョブ同期が成功するまで表示を維持する
+5. `config.json` 保存と、必要なcron-job.org同期が成功した場合：「設定を保存しました」トーストを表示する
 6. 失敗時：エラー内容に応じたメッセージを表示する（ERR-08〜ERR-12・ERR-14参照。ERR-13は使用しない。詳細はNF-02参照）
 
 #### 出力（正常系）
 - `config/config.json` がリポジトリに1コミット追加される
-- `notify_schedules` が変更された場合は cron-job.org のジョブ時刻が即座に更新される
+- `notify_schedules` が変更され、cron-job.org APIキーが設定されている場合は、`cron_job_id` を持つ全ジョブの有効状態と、有効ジョブの時刻が即座に同期される
 - 次回の定時実行から新しい設定が適用される
 
 #### `config/config.json` の構造
@@ -492,7 +493,7 @@ SCR-02（日次詳細）:
 
 > **`sources[].type` の許容値**：`"hackernews"` / `"reddit"` / `"rss"` / `"zenn"` / `"hatena"`。collect.py がこの値でパーサを振り分ける（FR-01参照）。設定画面からユーザーが追加できるソースは `type: "rss"`（汎用RSS/Atom）のみとする。`"zenn"` type は Qiita AI も含む（AIタグフィードのためキーワードフィルタをスキップする）。
 > **`gemini_prompt` の `{articles}` プレースホルダー**：summarize.py が記事一覧テキストに置換する。このプレースホルダーは必須。プロンプトは設定UIには非公開で config.json 直接編集で変更する。`{articles}` 不在時は summarize.py がデフォルトプロンプトにフォールバックする（`[WARN]` ログ）。
-> **`notify_schedules`**：通知スケジュールの配列（最大3件）。各エントリは `{ "hour": 0〜23（JST）, "enabled": true/false, "max_articles": 1〜10, "genres": {カテゴリ: bool}, "cron_job_id": string|null }` の形式。`enabled: true` のスロットは cron-job.org 側に個別のジョブとして登録され、cron-job.org がそのジョブから `daily.yml` へ `workflow_dispatch` を送る（`daily.yml` 自体に `enabled` スロットに対応する cron 式は存在しない。architecture.md参照）。少なくとも1件は `enabled: true` でなければならない（保存時にクライアント側でチェックし、`"少なくとも1つのスケジュールを有効にしてください。"` をスケジュールセクション直下にインライン表示する。専用のエラーIDは割り当てない）。
+> **`notify_schedules`**：通知スケジュールの配列（最大3件）。各エントリは `{ "hour": 0〜23（JST）, "enabled": true/false, "max_articles": 1〜10, "genres": {カテゴリ: bool}, "cron_job_id": string|null }` の形式。`cron_job_id` を持つ各スロットは cron-job.org 側の個別ジョブに対応する。保存時は有効スロットを `enabled: true` と時刻で同期し、無効スロットを `enabled: false` で同期して外部ジョブを停止する。cron-job.org が有効ジョブから `daily.yml` へ `workflow_dispatch` を送る（`daily.yml` 自体に `enabled` スロットに対応する cron 式は存在しない。architecture.md参照）。少なくとも1件は `enabled: true` でなければならない（保存時にクライアント側でチェックし、`"少なくとも1つのスケジュールを有効にしてください。"` をスケジュールセクション直下にインライン表示する。専用のエラーIDは割り当てない）。
 > **`notify_schedules[].max_articles`**：そのスロットで選出する記事の上限件数（1〜10の整数）。スロットごとに異なる件数を設定できる。デフォルトは10。
 > **`notify_schedules[].genres`**：そのスロットで通知するカテゴリのON/OFFマップ。スロットごとに異なるジャンルフィルタを設定できる。
 > **`notify_schedules[].cron_job_id`**：このスロットに対応する cron-job.org のジョブID（文字列）。Pythonスクリプトからは参照されず、設定画面（`docs/index.html`）が cron-job.org API連携（`cronJobOrgUpdate()`）にのみ使用する。未連携のスロットは `null`。

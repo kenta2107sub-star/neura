@@ -371,8 +371,8 @@ neura/
 │  │ [ ] スロット3  [  8:00 JST ▼ ]   │     │
 │  └────────────────────────────────────┘     │
 │  ※ 最大3回まで設定可。cron-job.org APIキーと │
-│    ジョブIDを設定すると、時刻変更が cron-job.org│
-│    のスケジュールに自動同期される             │
+│    ジョブIDを設定すると、有効状態と有効時刻が  │
+│    cron-job.org のジョブに自動同期される       │
 │                                              │
 │  ## キーワードフィルタ                        │
 │  英語キーワード（カンマ区切り）               │
@@ -392,7 +392,7 @@ neura/
 | PAT 入力欄 | 入力 + 「保存」 | `localStorage` に保存。「✅ 接続済み」に変化 |
 | PAT 「変更」ボタン | クリック | PAT入力欄を編集可能な状態に切り替える |
 | PAT 「削除」ボタン | クリック | `localStorage` から削除。「❌ 未接続」に変化 |
-| cron-job.org APIキー入力欄（任意） | 入力 | `localStorage` の `neura_cronjob_apikey` に保存。未入力の場合、スケジュール変更時のcron-job.org自動同期はスキップされる（config.jsonの保存自体は行われる） |
+| cron-job.org APIキー入力欄（任意） | 入力 | `localStorage` の `neura_cronjob_apikey` に保存。未入力の場合、スケジュール変更時のcron-job.org自動同期はスキップされる（config.jsonの保存自体は行われる）。スキップ時は同期済みスケジュールとして記録しない |
 | 収集ソース実行ステータス | — | PAT 設定済み時に GitHub Actions API で `daily.yml` の最終実行結果を取得し表示。成功: `✅ 最終実行: YYYY-MM-DD HH:MM JST 成功`、失敗: `❌ 最終実行: ... 失敗 [Actionsで確認 →]`（外部リンク）、取得中: `🔄 確認中...`、PAT 未設定時は非表示 |
 | 収集ソース列ヘッダー | — | ソース名 / URL / タイプ の3列ラベルを各行の上に1行表示する |
 | ソースチェックボックス | ON/OFF | 未保存の変更として記憶（「保存する」押下時にまとめて送信） |
@@ -405,7 +405,7 @@ neura/
 | スロット内件数スライダー | スライド（1〜10） | そのスロットの通知件数上限を設定。現在値をリアルタイム表示 |
 | スロット内cron-job.orgジョブID入力欄 | 入力 | `notify_schedules[].cron_job_id` に保存。cron-job.org側で事前に作成したジョブのIDを手動で入力する |
 | キーワード入力欄 | 入力 | カンマ区切りで編集。未保存の変更として記憶 |
-| 「保存する」ボタン | クリック | GitHub Contents API に PUT して `config/config.json` を更新。`notify_schedules` が変更され、かつcron-job.org APIキーが設定されている場合は `cronJobOrgUpdate()` でcron-job.orgのジョブ時刻も更新（`daily.yml` 自体は書き換えない。ERR-14参照）。成功時トーストを表示 |
+| 「保存する」ボタン | クリック | GitHub Contents API に PUT して `config/config.json` を更新。`notify_schedules` の時刻・有効状態・ジョブIDが変更され、かつcron-job.org APIキーが設定されている場合は `cronJobOrgUpdate()` を実行する。`cron_job_id` を持つ全スロットについて、有効なら `enabled: true` と時刻、無効なら `enabled: false` をcron-job.orgへ同期する（`daily.yml` 自体は書き換えない。ERR-14参照）。全PATCH成功時のみ同期済みスケジュールを更新して成功トーストを表示 |
 
 #### 状態
 
@@ -415,9 +415,9 @@ neura/
 | config.json 読み込み中 | 各フォームにスケルトンUIを表示 |
 | config.json 読み込み失敗 | `config/config.json が見つかりません。デフォルト値を表示しています。` を表示し、デフォルト値をフォームに設定する |
 | 保存中 | 「保存する」ボタンを `[保存中...]` に変えて disabled にする |
-| 保存成功 | `✅ 設定を保存しました。次回の定時実行から反映されます。` トーストを3秒表示 |
+| 保存成功 | `✅ 設定を保存しました。次回の定時実行から反映されます。` トーストを3秒表示。スケジュールを同期した場合は、cron-job.orgの対象全ジョブのPATCH成功後に限る |
 | 保存失敗（GitHub API） | ERR-08〜ERR-11 のエラーメッセージをページ上部に表示 |
-| 保存失敗（cron-job.org連携） | config.json自体の保存は成功済みのまま、`ERR-14` メッセージをページ上部に表示 |
+| 保存失敗（cron-job.org連携） | config.json自体の保存は成功済みのまま、`ERR-14` メッセージをページ上部に表示する。この保存処理では成功トーストを表示せず、ERR-14を消さない。次回以降に対象全ジョブの同期が成功した場合のみ解除する |
 | URL バリデーションエラー | 「保存する」押下時に、有効（enabled）なソースのうちURLが空または `https://` 以外の行の URL 欄を赤枠表示。`ERR-12` メッセージをソースセクション上部に表示。API は呼ばない |
 | スケジュール未選択エラー | 「保存する」押下時に `notify_schedules` の `enabled: true` が0件の場合、スケジュールセクション直下にインラインメッセージを表示。API は呼ばない |
 | Actions 実行ステータス（確認中） | 収集ソース欄の先頭に `🔄 最終実行を確認中...` を表示（PAT 設定後の fetch 中） |
@@ -580,10 +580,10 @@ const MOCK_DIGEST = {
 | `gemini_prompt` | string | ✅ | Gemini に送るプロンプト全文（設定UIには非公開。config.json 直接編集で変更可） | requirements.md FR-02 のデフォルトプロンプト |
 | `notify_schedules` | NotifySchedule[] | ✅ | 通知スケジュール（最大3件） | スロット1のみ有効（13時・10件・全カテゴリ） |
 | `notify_schedules[].hour` | number | ✅ | 実行時刻（JST 0〜23）。cron-job.org側のジョブがこの時刻でトリガーする（daily.ymlのcron式は書き換えない） | `13` / `20` / `8` |
-| `notify_schedules[].enabled` | boolean | ✅ | スロットの有効/無効 | スロット1のみ `true` |
+| `notify_schedules[].enabled` | boolean | ✅ | スロットの有効/無効。`cron_job_id` がある場合、保存時に対応する外部ジョブの `enabled` へ同期する | スロット1のみ `true` |
 | `notify_schedules[].max_articles` | number | ✅ | そのスロットの通知件数上限（1〜10） | `10` |
 | `notify_schedules[].genres` | object | ✅ | そのスロットで通知するカテゴリON/OFFマップ | 全カテゴリ `true` |
-| `notify_schedules[].cron_job_id` | string \| null | ❌ | cron-job.org連携用のジョブID。Pythonスクリプトは未使用、設定画面のみ使用 | `null` |
+| `notify_schedules[].cron_job_id` | string \| null | ❌ | cron-job.org連携用のジョブID。Pythonスクリプトは未使用、設定画面が有効・無効を問わず対応ジョブを同期するために使用 | `null` |
 
 > GitHub接続情報（owner / repo / PAT）・cron-job.org APIキーは config.json には含めず、ブラウザの `localStorage` に保存する（`neura_github_owner` / `neura_github_repo` / `neura_github_pat` / `neura_cronjob_apikey`）。理由は requirements.md FR-06 参照。
 > グローバルの `genres` / `max_articles` / `run_hour_jst` は廃止済み。旧形式の config.json は `config_loader.py` が自動マイグレーションする。
@@ -606,7 +606,7 @@ const MOCK_DIGEST = {
 | ERR-11 | FR-06 | 保存失敗（その他） | `"設定の保存に失敗しました。しばらく後に再試行してください。"` | ページ上部バナー | 上記以外のHTTPエラー・ネットワークエラー |
 | ERR-12 | FR-06 | URL フォーマット不正 | `"URLが未入力またはhttps://で始まっていないソースがあります。"` | ソースセクション上部 | 保存時に**有効（enabled）な**ソースのうち、空URL または `https://` 以外のものがある場合。該当行のURL欄を赤枠表示 |
 | （エラーID未割当） | FR-06 | スケジュール未選択 | `"少なくとも1つのスケジュールを有効にしてください。"` | スケジュールセクション直下 | 保存時に `notify_schedules` に `enabled: true` が1件も無い場合 |
-| ERR-14 | FR-06 | cron-job.org更新失敗 | `"設定は保存しましたが、cron-job.org のスケジュール更新に失敗しました。APIキーとジョブIDを確認してください。"` | ページ上部バナー | `notify_schedules` 変更時、cron-job.org APIへの `PATCH` リクエストが失敗した場合（config.json は保存済み） |
+| ERR-14 | FR-06 | cron-job.org更新失敗 | `"設定は保存しましたが、cron-job.org のスケジュール更新に失敗しました。APIキーとジョブIDを確認してください。"` | ページ上部バナー | `notify_schedules` の時刻・有効状態・ジョブID変更時、`cron_job_id` を持つ対象全スロットのいずれかでcron-job.org APIへの `PATCH` が失敗した場合（config.json は保存済み）。成功トーストで直後に消去しない |
 | ERR-15 | FR-07 | 既読機能無効化 | 表示なし（サイレントフォールバック） | - | `localStorage` がアクセス不可（プライベートブラウジング等）、または保存値のJSONパースに失敗した場合。既読機能のみ無効化し、閲覧機能は継続する |
 
 > **ERR-13は欠番**：旧仕様（`.github/workflows/daily.yml` のcron式を直接書き換える方式）向けに予約されていたが、cron-job.org経由の時刻更新方式（ERR-14）に置き換わったため使用しない。対応する `ghPutWorkflow`／`schedulesToYamlBlock` 関数はコードから削除する（カテゴリC対応）。
