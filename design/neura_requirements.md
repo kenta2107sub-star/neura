@@ -234,17 +234,18 @@ Discord Webhook URL（環境変数 `DISCORD_WEBHOOK_URL`）
 
 #### 処理フロー
 1. トップレベルの `content`（プレーンテキスト）を構築する：`🧠 Neura Daily — {YYYY/MM/DD}（{件数}件）` の1行目に続けて、全記事タイトルを `{連番}. {title_ja}` の箇条書きで列挙する（Discordのプッシュ通知プレビューは `embeds` 内のテキストを表示しないため、通知バナーに記事タイトルを表示する目的で付与する）
-2. Discord Embed形式のメッセージを構築する
+2. トップレベルの `allowed_mentions` を `{"parse": []}` に設定し、外部記事由来の `title_ja` に `@everyone`、`@here`、ユーザーまたはロールへのメンション表記が含まれていても、`content` を含むペイロード内のすべてのメンションをDiscordに解析させない（タイトルの本文表示は維持する）
+3. Discord Embed形式のメッセージを構築する
    - ヘッダー：`🧠 Neura Daily — {YYYY/MM/DD}（{件数}件）`
    - 各記事をEmbed fieldとして追加：`[カテゴリバッジ] タイトル` + 要約 + `key_points`（箇条書き、最大3件） + URLリンク
    - カテゴリバッジ：`ニュース`→🗞️、`研究`→🔬、`活用事例`→💡、`ツール`→🛠️
    - フッター：`Neura by GitHub Actions`
-3. 構築したメッセージの全embed合計文字数（title・description・field name・field value・footer・author nameの総和）を計算する
-   - 6,000字以内：そのまま4へ進む
+4. 構築したメッセージの全embed合計文字数（title・description・field name・field value・footer・author nameの総和）を計算する
+   - 6,000字以内：そのまま5へ進む
    - 6,000字超過：`importance` 昇順（低い記事から）に、その記事の `key_points` 箇条書きをEmbedから除去する。1件除去するごとに再計算し、6,000字以内に収まった時点で打ち切る
    - 全記事の `key_points` を除去してもなお6,000字を超過する場合：`importance` 昇順に `summary_ja` を100文字で切り詰め末尾に `…` を付与する（発生頻度は極めて低い想定のフォールバック）
-4. `content` と `embeds` を1つのペイロードにまとめ、`DISCORD_WEBHOOK_URL` に対してPOSTリクエストを送信する（`requests` ライブラリ使用）
-5. HTTPステータス `204` を正常とする
+5. `content`、`allowed_mentions`、`embeds` を1つのペイロードにまとめ、`DISCORD_WEBHOOK_URL` に対してPOSTリクエストを送信する（`requests` ライブラリ使用）
+6. HTTPステータス `204` を正常とする
    - `204` 以外の場合：ログに `[ERROR] Discord webhook failed: {status_code}` を記録して終了（リトライなし）
 
 #### 出力（正常系）
