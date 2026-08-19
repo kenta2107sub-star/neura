@@ -48,6 +48,15 @@ def test_build_discord_payload_content_lists_all_titles():
     assert "3. 記事C" in content
 
 
+def test_build_discord_payload_disables_mentions_from_external_titles():
+    title = "@everyone @here <@123456789> <@&987654321>"
+
+    payload = notify.build_discord_payload([_article(title=title)], "2026/06/18")
+
+    assert title in payload["content"]
+    assert payload["allowed_mentions"] == {"parse": []}
+
+
 def test_build_discord_payload_includes_key_points():
     art = _article(key_points=["ポイント1", "ポイント2"])
     payload = notify.build_discord_payload([art], "2026/06/18")
