@@ -32,7 +32,7 @@ Neura は GitHub Actions を起点に、Hacker News・Reddit・各種 RSS フィ
 
 - **AIニュース収集**：Hacker News / Reddit / TechCrunch AI / MIT Technology Review AI / VentureBeat AI / Zenn / Qiita / ITmedia AI+ / はてなブックマーク（10 ソース）から AI 関連記事を並列取得
 - **日本語要約・分類**：Gemini Flash API（`gemini-2.5-flash`）で日本語タイトル・要約・伝えたいこと（key_points）・全文翻訳・カテゴリ（ニュース / 研究 / 活用事例 / ツール）・重要度を自動生成
-- **Discord 通知**：1 日最大 3 回、定刻に Webhook でダイジェストを配信。カテゴリバッジ・重要度・key_points 付き（6,000 字を超える場合は重要度の低い記事から自動調整）
+- **Discord 通知**：1 日最大 3 回、定刻に Webhook でダイジェストを配信。カテゴリバッジ・重要度・key_points 付きで、記事タイトルにメンション表記が含まれていても意図しないメンション通知は発生しません（6,000 字を超える場合は重要度の低い記事から自動調整）
 - **既読管理**：ブラウザの `localStorage` に既読状態を記録し、読んだ記事をアーカイブサイト上で視覚的に区別
 - **未読リマインド**：前日の配信を見ていない場合、翌朝 9 時に Discord へリマインドを送信
 - **週次ダイジェスト**：毎週土曜 12 時に、直近 7 日分の件数サマリー・カテゴリ内訳・注目記事トップ 5 を配信

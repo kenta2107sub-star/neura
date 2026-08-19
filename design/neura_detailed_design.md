@@ -838,6 +838,8 @@ def build_discord_payload(articles: list[dict], date: str) -> dict:
 
     return {
         "content": f"🧠 Neura Daily — {date}（{len(articles)}件）\n{title_list}",
+        # 外部記事由来のタイトルを表示したまま、全メンションの解析を無効化する
+        "allowed_mentions": {"parse": []},
         "embeds": [{
             "title": f"🧠 Neura Daily — {date}（{len(articles)}件）",
             "color": 0x7c6aff,  # アクセントパープル
