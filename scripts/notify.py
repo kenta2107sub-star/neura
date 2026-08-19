@@ -108,6 +108,7 @@ def build_discord_payload(articles: list[Article], date: str) -> dict:
 
     return {
         "content": f"🧠 Neura Daily — {date}（{len(articles)}件）\n{title_list}",
+        "allowed_mentions": {"parse": []},
         "embeds": [fit_embed_to_char_limit(articles, date)],
     }
 
