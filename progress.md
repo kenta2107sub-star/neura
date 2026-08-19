@@ -31,7 +31,7 @@ Codexで最初の改修を始める前に、設計書と現行実装の整合性
 | GitHub接続 | 接続済み |
 | origin URL | `https://github.com/kenta2107sub-star/neura.git` |
 | 既定ブランチ | `main` |
-| Codex Cloud環境 | セットアップ手順作成済み（GitHub接続・環境作成・Cloud実行未確認） |
+| Codex Cloud環境 | 設定済み（GitHub接続・環境作成を確認、Cloud実行未確認） |
 | Codexの夜間実行方式 | 未決定 |
 | `codex/*` Pushの継続許可 | 未回答 |
 | PR作成の継続許可 | 未回答 |
@@ -114,7 +114,7 @@ READMEドリフト検出：`有効`
 | 2026-08-18 | 19時二重通知バグの設計更新が承認され、実装と外部ジョブ無効化へ進む |
 | 2026-08-18 | cron-job.org ジョブ `7946648`（Neura-2 JST）を無効化した |
 | 2026-08-18 | ユーザー承認によりmainへPushし、GitHub Pagesの本番反映が成功した |
-| 2026-08-19 | Codex Cloud用の環境設定・安全なテスト手順を`.codex/cloud-setup.md`へ追加する |
+| 2026-08-19 | Codex Cloud環境へPython 3.11、手動Setup／Maintenance Script、インターネット無効を設定した |
 
 ---
 
@@ -136,5 +136,4 @@ READMEドリフト検出：`有効`
 ## 次のアクション
 
 1. 2026-08-19 19時の`daily.yml`起動が1本、Discord通知が1回であることを確認する
-2. Codex Cloud対応コミットのmainへのPush承認を得る
-3. Push後、`.codex/cloud-setup.md`に従ってCloud environmentを作成し、初回smoke taskを実行する
+2. Codex Cloudで初回smoke taskを実行し、89件のテスト成功を確認する

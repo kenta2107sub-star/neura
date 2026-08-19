@@ -5,12 +5,12 @@
 | 項目 | 状態 |
 |---|---|
 | セットアップ手順 | 作成済み |
-| CodexとGitHubの接続 | 未確認 |
-| Cloud environment | 未作成・未確認 |
+| CodexとGitHubの接続 | 接続済み（Neura環境で確認） |
+| Cloud environment | 作成・設定済み |
 | Cloud上のテスト | 未実行 |
 
 このファイルはCloud environmentへ自動適用される設定ファイルではない。
-以下の内容をCodexのEnvironment settingsへ手動で反映する。
+以下の内容は2026-08-19にCodexのEnvironment settingsへ反映済み。
 
 ## 対象
 
@@ -112,16 +112,16 @@ node --test tests/test_settings_schedule_sync.mjs を実行してください。
 
 ## Cloud UIチェックリスト
 
-1. Codexへサインインする
-2. GitHubを接続し、`kenta2107sub-star/neura`へのアクセスを許可する
-3. Neura用のCloud environmentを作成する
-4. Python 3.11を選択する
-5. Setup scriptとMaintenance scriptを登録する
-6. 環境変数とSecretsを空のままにする
-7. Agent internet accessを`Off`にする
-8. `main`を選択し、初回smoke taskを実行する
-9. `89 passed / 0 failed`とGit差分なしを確認する
-10. 実開発は`codex/*`ブランチで開始する
+1. [x] Codexへサインインする
+2. [x] GitHubを接続し、`kenta2107sub-star/neura`へのアクセスを許可する
+3. [x] Neura用のCloud environmentを作成する
+4. [x] Python 3.11を選択する
+5. [x] Setup scriptとMaintenance scriptを登録する
+6. [x] 環境変数とSecretsを空のままにする
+7. [x] Agent internet accessを`Off`にする
+8. [ ] `main`を選択し、初回smoke taskを実行する
+9. [ ] `89 passed / 0 failed`とGit差分なしを確認する
+10. [ ] 実開発は`codex/*`ブランチで開始する
 
 ## 未確認事項と切り分け
 
