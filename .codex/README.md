@@ -8,6 +8,7 @@
 - `flow.md`：Phase 0〜8 と運用フェーズの手順
 - `capabilities.md`：利用するスキルと Codex 機能
 - `quality-rules.md`：品質・セキュリティ規則
+- `cloud-setup.md`：Neura専用のCodex Cloud環境設定手順
 
 ## Neura での利用開始
 
@@ -31,8 +32,9 @@ Neura は既存のGitHubリポジトリへ接続済みである。公開範囲�
 mainへのPushはユーザー承認後に行う。`.env`、認証情報、秘密鍵、一時レポートは
 引き続き`.gitignore`で除外する。
 
-Codex Cloud を選んだ場合は、GitHub の対象リポジトリを接続し、リポジトリ用の環境を作成して使う。
-依存関係・実行コマンドが Phase 2 で確定したら、Cloud の setup script と環境変数を設計書に合わせて更新する。
+Codex Cloudを使う場合は`.codex/cloud-setup.md`に従い、
+GitHub接続、Cloud environment作成、Python 3.11、setup scriptを設定する。
+この文書はCloudへ自動適用されないため、CodexのEnvironment settingsへ手動で反映する。
 
 夜間作業は main ではなく `codex/*` ブランチで行い、完了時は PR まで作成して翌朝レビューする。
 `codex/*` への Push と PR 作成を無人実行するには、Phase 0 でユーザーの継続許可を得て

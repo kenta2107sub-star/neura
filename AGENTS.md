@@ -19,6 +19,22 @@
 `progress.md` がなければ、プロジェクト直下の Markdown と実装コードを確認し、
 現在地を特定してから進める。
 
+## Codex Cloudでの開発
+
+Cloud environmentを使う前に`.codex/cloud-setup.md`を読み、
+Python 3.11、setup script、ネットワーク方針を環境設定へ反映する。
+
+Cloud上の標準検証コマンドは次のとおり。
+
+```bash
+python -m pytest -q
+node --test tests/test_settings_schedule_sync.mjs
+```
+
+これらのテストは外部APIをmockして実行する。
+本番のGemini APIキー、Discord Webhook、GitHub PATをCloud agentへ渡さない。
+Cloud作業は`codex/*`ブランチで行い、mainへ直接反映しない。
+
 ## `/start`の扱い
 
 ユーザーのそのセッションでの最初のメッセージが、他の文字を含まない`/start`だった場合、
