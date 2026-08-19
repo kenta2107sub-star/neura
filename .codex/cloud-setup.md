@@ -7,7 +7,7 @@
 | セットアップ手順 | 作成済み |
 | CodexとGitHubの接続 | 接続済み（Neura環境で確認） |
 | Cloud environment | 作成・設定済み |
-| Cloud上のテスト | 未実行 |
+| Cloud上のテスト | 実行済み（89 passed / 0 failed、Git差分なし） |
 
 このファイルはCloud environmentへ自動適用される設定ファイルではない。
 以下の内容は2026-08-19にCodexのEnvironment settingsへ反映済み。
@@ -28,11 +28,12 @@ mainへの直接Push、PRのマージ、本番デプロイはCloud taskへ含め
 | Runtime | 設定 | 根拠 |
 |---|---|---|
 | Python | `3.11`へ固定 | `.github/workflows/*.yml`と設計書がPython 3.11を指定 |
-| Node.js | リポジトリで未固定 | JavaScriptテストは組み込み`node:test`だけを使用 |
+| Node.js | リポジトリで未固定。Cloud実行値は`v24.15.0` | JavaScriptテストは組み込み`node:test`だけを使用 |
 
 Environment settingsの「Set package versions」でPython 3.11を選択する。
-Node.jsは初回taskで`node --version`とテスト成功を確認する。
-失敗した場合は、Cloud側で利用可能なNode.jsを固定して再実行する。
+初回smoke taskではNode.jsが`v24.15.0`で実行され、テストは成功した。
+設定画面で選択したNode.js 20と実行値が異なるため、
+Node.jsに依存する改修を始める前にCloud設定を再確認する。
 
 ## Setup方式
 
@@ -119,8 +120,8 @@ node --test tests/test_settings_schedule_sync.mjs を実行してください。
 5. [x] Setup scriptとMaintenance scriptを登録する
 6. [x] 環境変数とSecretsを空のままにする
 7. [x] Agent internet accessを`Off`にする
-8. [ ] `main`を選択し、初回smoke taskを実行する
-9. [ ] `89 passed / 0 failed`とGit差分なしを確認する
+8. [x] `main`を選択し、初回smoke taskを実行する
+9. [x] `89 passed / 0 failed`とGit差分なしを確認する
 10. [ ] 実開発は`codex/*`ブランチで開始する
 
 ## 未確認事項と切り分け
@@ -134,10 +135,10 @@ node --test tests/test_settings_schedule_sync.mjs を実行してください。
 | テストが外部接続を要求する | 本番資格情報を追加せず、mock漏れを修正 |
 | 古い依存状態が残る | Environment settingsからcacheをresetして再実行 |
 
-ローカルではPython 3.11の依存環境で81件、
-Node.jsで8件のテスト成功を確認済み。
-Cloud environment自体は未実行なので、初回smoke taskが成功するまでは
-`Cloud検証済み`とは扱わない。
+2026-08-19のCloud smoke taskでは、Python 3.11.15で81件、
+Node.js v24.15.0で8件、合計89件のテストが成功した。
+外部API・本番サービスの呼出、ファイル変更、コミット、PR作成はない。
+Git差分なしを確認済みのため、Cloud環境を`Cloud検証済み`として扱う。
 
 ## 公式資料
 
