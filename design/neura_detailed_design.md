@@ -117,6 +117,7 @@
 - 箇条書きは `-` で保持する
 - 重要ワードは `**太字**` で保持する
 - URLリンクは除去してプレーンテキストにする
+- HTMLタグ・属性は使用しない。表示側はHTMLをMarkdownとして解釈せず、文字列として表示する
 
 ---
 
@@ -358,8 +359,14 @@ async def main():
     # 3. フラット化・AIキーワードフィルタ（config.keywords使用）・重複排除・ソース別ソート・上位20件
     articles = filter_and_rank(flatten(results), config["keywords"])
 
-    # 4. 各記事URLから本文テキストを並列取得（asyncio.to_thread + asyncio.gather）
-    bodies = await asyncio.gather(*[asyncio.to_thread(fetch_body_text, a["url"]) for a in articles])
+    # 4. 各記事URLから本文テキストを最大5件ずつ並列取得する
+    #    URLごとに公開IP検証、接続先固定、応答上限・リダイレクト上限を適用する
+    body_semaphore = asyncio.Semaphore(5)
+    async with aiohttp.ClientSession(...) as body_session:
+        async def fetch_limited(article):
+            async with body_semaphore:
+                return await fetch_body_text(body_session, article["url"])
+        bodies = await asyncio.gather(*[fetch_limited(article) for article in articles])
     for article, body in zip(articles, bodies):
         article["body_text"] = body  # 失敗時はNone
 
@@ -385,7 +392,20 @@ async def main():
 #     return []
 ```
 
-> 各fetch関数の引数 `url` は config の `sources[].url` をそのまま受け取る。これにより収集元URLの変更を設定画面（FR-06）から行える。
+> 各fetch関数の引数 `url` は config の `sources[].url` を受け取る。設定ソースはHTTPSかつ公開IPアドレスへの接続だけを許可する。これにより収集元URLの変更を設定画面（FR-06）から行える一方、ローカルネットワークやクラウドメタデータへは接続しない。
+
+#### 安全なHTTP取得
+
+`fetch_public_bytes()` をフィード取得と本文取得の共通入口とする。URLを解析してスキームを確認し、ホスト名をDNS解決した結果がすべて公開IPアドレスである場合だけ接続する。許可しないのはlocalhost、ループバック、プライベート、リンクローカル、マルチキャスト、予約済み、未指定、およびクラウドメタデータ用のIPアドレスである。
+
+解決したIPアドレスを接続先として使い、`Host` ヘッダーとTLSのSNIは元のホスト名を維持する。これによりDNS再解決による接続先のすり替えを防ぐ。リダイレクトは最大3回とし、遷移先URLごとにスキーム検査、DNS解決、公開IP検査、接続先固定をやり直す。
+
+| 用途 | 許可スキーム | 応答本文上限 | 失敗時 |
+|---|---|---:|---|
+| 設定ソース・HN API | HTTPSのみ | 1 MiB | そのソースを失敗として続行 |
+| 記事本文 | HTTP / HTTPS | 2 MiB | `body_text: null` として続行 |
+
+応答はストリームで読み、上限を超えた時点で接続を中止する。危険な接続先、DNS解決失敗、リダイレクト上限超過、応答上限超過はいずれも外部URLの取得失敗として扱う。
 
 **`fetch_hackernews(url: str)`**
 ```python
@@ -399,7 +419,7 @@ async def main():
 
 **`fetch_rss(feed_url: str, source: str)`**
 ```python
-# HTTP取得は aiohttp、パースは feedparser.parse(bytes) を asyncio.to_thread で実行
+# fetch_public_bytesでHTTPS・公開IP・1 MiB上限を検証してHTTP取得し、パースはfeedparser.parse(bytes)をasyncio.to_threadで実行
 # source は "Reddit" | "RSS" | "Zenn" を呼び出し側から渡す
 # 出力フィールド: title=entry.title, url=entry.link, source=source, score=0, published_at=entry.published_parsed(→ISO)
 # AIキーワードフィルタは source=="Zenn" のみスキップ（filter_and_rank 側で判定）
@@ -418,7 +438,7 @@ async def main():
 
 **`fetch_body_text(url: str) -> str | None`**
 ```python
-# trafilatura.fetch_url(url, timeout=10) → HTML文字列
+# fetch_public_bytesでHTTP/HTTPS・公開IP・接続先固定・最大3回のリダイレクト・2 MiB上限を検証してHTML文字列を取得
 # trafilatura.extract(html, include_comments=False, include_tables=False) → 本文テキスト
 # 失敗（None返却・例外）: return None
 # 成功: return body_text[:5000]  # 最大5000文字
@@ -507,6 +527,7 @@ def matches_ai_keyword(title: str, source: str, keywords: dict) -> bool:
 | 特定ソースがタイムアウト（10秒） | `[WARN] {source} timeout` をログ出力してそのソースをスキップ |
 | 全ソースが失敗 | `[ERROR] All sources failed` をログ出力してexit(1)（後続スクリプトが起動しない） |
 | 本文取得の失敗（個別URL） | `body_text: null` として続行（記事自体はスキップしない） |
+| 危険な接続先・DNS解決失敗・リダイレクト上限・応答上限 | ソース取得ではそのソースを失敗、本文取得では `body_text: null` として続行 |
 
 ---
 
@@ -520,7 +541,7 @@ def matches_ai_keyword(title: str, source: str, keywords: dict) -> bool:
 | 定数 | 値 | 用途 |
 |---|---|---|
 | `BODY_MAX_CHARS_SELECT` | 700 | Stage 1 選定用の本文上限文字数 |
-| `BODY_MAX_CHARS_TRANSLATE` | 3000 | Stage 2 翻訳用の本文上限文字数 |
+| `BODY_MAX_CHARS_TRANSLATE` | 5000 | Stage 2 翻訳用の本文上限文字数 |
 | `SELECT_MAX` | 10 | Stage 1 で選ぶ件数の上限 |
 
 Stage 1 で実際に選ぶ件数（`select_n`）はスロットの `max_articles`（`slot_max`）を基準に
@@ -718,6 +739,8 @@ def normalize_category(cat: str | None) -> str:
 URLのJSON配列のみを返してください。説明文は不要です。
 ```
 
+Stage 1の返却URLは `normalize_url()` で収集済み記事と照合する。未知URLは無視し、パース失敗または有効な選定が0件の場合だけ、収集済み記事全件をStage 2の入力にする。
+
 #### Stage 2 翻訳プロンプト（`config.gemini_prompt` テンプレート）
 
 プロンプト本文は config（`config.gemini_prompt`）のテンプレートを使い、`{articles}` を記事一覧テキストに置換する。
@@ -726,7 +749,7 @@ URLのJSON配列のみを返してください。説明文は不要です。
 def build_prompt(articles: list[dict], template: str) -> str:
     articles_text = "\n\n".join([
         f"[{i+1}] タイトル: {a['title']}\nURL: {a['url']}\nソース: {a['source']}\n"
-        f"本文: {a['body_text'][:3000] if a['body_text'] else '（本文取得不可）'}"
+        f"本文: {a['body_text'][:5000] if a['body_text'] else '（本文取得不可）'}"
         for i, a in enumerate(articles)
     ])
 
@@ -766,6 +789,12 @@ def build_prompt(articles: list[dict], template: str) -> str:
 JSON配列のみを返してください。説明文・マークダウンの囲み・前後の文章は不要です。
 ```
 
+#### Stage 2出力のURL検証
+
+GeminiのStage 2出力は信頼しない。`normalize_url()` をキーに、Stage 2へ渡した選定済み記事だけの対応表を作る。各出力はそのキーが対応表にある場合だけ採用し、対応する元記事の `url`、`source`、`published_at` を復元する。
+
+未知URL、空URL、選定外の収集URL、正規化後に重複するURLは採用しない。これらは `[WARN]` の件数ログだけを残し、Discord通知とアーカイブJSONには含めない。補充時も、補充用に選定した記事だけで別の対応表を作り、同じ検証を適用する。
+
 #### 出力ファイル形式（`/tmp/neura_summarized.json`）
 
 ```json
@@ -793,6 +822,7 @@ JSON配列のみを返してください。説明文・マークダウンの囲�
 | JSONパース失敗（Stage 2） | `[WARN]` をログ出力して30秒待機後リトライ（最大3回）。3回連続失敗で exit(1) |
 | Gemini が非標準カテゴリを返却 | `response_schema` の enum 制約により発生しにくい。それでも非標準値が来た場合は `normalize_category` でマッピング。未知値は `[WARN]` ログ出力後 `select_articles` でフィルタ |
 | Gemini が同じ URL を重複返却 | URL 正規化後に先着1件のみ残して除去（`[WARN] Gemini重複 N件を除去`） |
+| Gemini が未知URL・選定外URLを返却 | その出力を破棄し、収集済み選定記事の元URLだけを出力に使用する |
 | 有効カテゴリの記事が0件 | `[ERROR] 有効カテゴリの記事が0件` をログ出力して exit(1)（後続の notify.py が実行されない） |
 | 選出件数が5件未満 | そのまま続行（`[WARN] Only {n} articles selected`） |
 
@@ -992,6 +1022,30 @@ def run_git_commands(today: str):
 
 ---
 
+### 2-7. `scripts/weekly_digest.py`（FR-09）
+
+#### 役割
+
+`docs/data/index.json` と直近7日分の日次JSONを集計し、カテゴリ内訳と重要度上位5件をDiscord Webhookへ送信する。
+
+#### Discordペイロード
+
+週次ダイジェストにも外部記事由来の `title_ja` が含まれるため、日次通知と同じメンション制御を必須とする。
+
+```python
+def build_discord_payload(articles: list[dict], start_date: str, end_date: str) -> dict:
+    # categoriesとtop_articlesを集計してembedを構築する
+    embed = {"title": f"📅 Neura Weekly — {start_date}〜{end_date}", "fields": []}
+    return {
+        "allowed_mentions": {"parse": []},
+        "embeds": [embed],
+    }
+```
+
+`allowed_mentions` はトップレベルに置く。`@everyone`、`@here`、ユーザーまたはロールへのメンション表記はタイトルとして表示するが、Discordには解析・通知させない。
+
+---
+
 ## 3. フロントエンド仕様（`docs/index.html`）
 
 ### 3-1. 画面・関数マップ
@@ -1133,6 +1187,10 @@ let currentDate = null;
 | 空行区切り | `<p>...</p>` |
 
 **シンタックスハイライト対応言語**：`python` / `javascript`（エイリアス `js`） / `typescript`（エイリアス `ts`） / `bash`（エイリアス `sh`）（トークンベースの簡易実装）
+
+`renderMarkdown(md)` は、コードブロックを退避したうえで入力全体を `escHtml()` でHTMLエスケープしてから、上表のMarkdown記法だけを変換する。リンク、画像、HTMLタグ、HTML属性、イベントハンドラは変換対象に含めない。コードブロックを復元する際も言語名とコード本文を個別にエスケープする。
+
+`translation_ja` は外部由来の文字列であるため、日次詳細、検索結果、翻訳モーダルのすべてで同じ`renderMarkdown()`の返り値だけを表示する。モーダルへ渡す翻訳パネルは、既に作った限定MarkdownのHTMLだけを`innerHTML`としてコピーする。`translation_ja`の生値を`innerHTML`へ渡してはならない。
 
 ### 3-6. 翻訳パネルのトグル
 
@@ -1552,18 +1610,17 @@ class DigestIndex(TypedDict):
 
 ---
 
-## 5. `requirements.txt`
+## 5. Python依存関係
 
-```
-aiohttp==3.9.5
-feedparser==6.0.11
-trafilatura==1.12.2
-google-genai
-requests==2.31.0
+`requirements.in` は直接依存だけを、正確なバージョン指定で定義する。`requirements.txt` は `uv pip compile requirements.in --generate-hashes --output-file requirements.txt` で生成するハッシュ付き完全ロックであり、推移依存もすべて含める。実行環境とCIは次のコマンドだけでインストールする。
+
+```bash
+pip install --require-hashes -r requirements.txt
 ```
 
-> `google-genai`：Google の新しい Python SDK（旧 `google-generativeai` から移行済み）。`from google import genai` でインポートし `genai.Client(api_key=...)` で使用する。バージョンピン留めなし（最新を使用）。
-> `trafilatura` は 1.8.0 だと依存（htmldate / lxml.html.clean）が現行 lxml と衝突するため 1.12.2 に更新済み。`fetch_url` / `extract` の API は同一。
+依存関係を追加・更新するときは `requirements.in` を更新し、`uv pip compile requirements.in --generate-hashes --output-file requirements.txt` を実行して `requirements.txt` を再生成する。`requirements.txt` を手で編集したり、ハッシュなしのインストールを使ったりしない。
+
+直接依存は `aiohttp`、`feedparser`、`trafilatura`、`google-genai`、`requests` とする。`google-genai` は `from google import genai` と `genai.Client(api_key=...)` で使用する。
 
 ---
 
@@ -1583,18 +1640,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
           cache: 'pip'       # requirements.txtをキャッシュして高速化
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install --require-hashes -r requirements.txt
 
       - name: Collect articles (FR-01)
         run: python scripts/collect.py
@@ -1615,6 +1672,8 @@ jobs:
         run: python scripts/archive.py
         # GITHUB_TOKEN はcheckout時に自動設定されるため env: 不要
 ```
+
+`daily.yml`、`remind.yml`、`weekly.yml` はすべて同じルールを適用する。`actions/checkout` と `actions/setup-python` の参照は、検証済みリリースの40文字完全SHAに固定する。依存更新時にActionsを更新する場合も、タグやブランチ参照へ戻さない。
 
 ---
 

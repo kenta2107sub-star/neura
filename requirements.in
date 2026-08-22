@@ -1,0 +1,6 @@
+# 直接依存。更新時はこのファイルの版を明示的に変更し、requirements.txtを再生成する。
+aiohttp==3.14.3
+feedparser==6.0.11
+trafilatura==1.12.2
+google-genai==2.19.0
+requests==2.33.0

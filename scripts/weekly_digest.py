@@ -78,6 +78,7 @@ def build_discord_payload(articles: list[dict], start_date: str, end_date: str) 
     header = f"📅 Neura Weekly — {start_date}〜{end_date}（計{len(articles)}件）"
 
     return {
+        "allowed_mentions": {"parse": []},
         "embeds": [
             {
                 "title": header,

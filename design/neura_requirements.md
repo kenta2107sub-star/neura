@@ -82,6 +82,9 @@ cron-job.org が `workflow_dispatch` 経由で GitHub Actions を起動（`notif
 
 #### 処理フロー
 1. 全ソースに対して並列でHTTPリクエストを送信する（`asyncio` + `aiohttp` を使用）
+   - 設定ソースは `https://` のみを受け付ける。リクエスト前と各リダイレクト先でホスト名をDNS解決し、公開IPアドレスだけを接続先として許可する
+   - localhost、プライベートIP、リンクローカルIP、ループバックIP、マルチキャストIP、予約IP、クラウドメタデータ用IPは拒否する。解決済みIPを接続先へ固定し、DNS再解決による接続先のすり替えを防ぐ
+   - リダイレクトは最大3回とし、遷移先も同じ検証を通す。フィードの応答本文は1 MiBまでとする
 2. 各ソースのレスポンスをパースし、記事リストを生成する
    - HN：`title`・`url`・`score`・`time` を取得。`url` が `None`（Ask HN等）の場合はスキップ
    - Reddit：RSS（Atom）を feedparser で解析。`title`・`link`・`published` を取得（スコアは取得不可のため0扱い・日付系ランキング）
@@ -97,7 +100,9 @@ cron-job.org が `workflow_dispatch` 経由で GitHub Actions を起動（`notif
 4. 重複URL排除（URLの末尾スラッシュ・クエリパラメータを除去して正規化した上で、同一URLの初出のみ残す）
 5. スコア系ソース（HN・はてブ）はスコア降順にソートして上位14件を選定し、日付系ソース（Reddit・RSS・Zenn）は公開日時降順にソートして上位6件を選定する（RedditはRSS化によりスコア無しのため日付系）
 6. 上位合計20件（スコア系14件・日付系6件）をマージして次の処理に渡す
-7. 上位20件の各記事URLに対してHTTPリクエストを送信し、`trafilatura` ライブラリで本文テキストを抽出する
+7. 上位20件の各記事URLに対してHTTP/HTTPSリクエストを送信し、`trafilatura` ライブラリで本文テキストを抽出する
+   - 記事URLもリクエスト前と各リダイレクト先で公開IPアドレスだけを許可し、解決済みIPを接続先へ固定する。リダイレクトは最大3回、HTML応答本文は2 MiBまでとする
+   - 本文取得は最大5件を同時実行する
    - 取得成功：`body_text` フィールドに本文テキスト（最大5000文字）を格納する
    - タイムアウト（10秒）またはアクセスブロック（403等）：`body_text: null` として続行する（このソースをスキップしない）
 8. `body_text` 付きの記事リストを次のFR-02に渡す
@@ -124,7 +129,8 @@ cron-job.org が `workflow_dispatch` 経由で GitHub Actions を起動（`notif
 - 設定画面（SCR-04）が GitHub Contents API でこのファイルを読み、各ソース行に「⚠ 取得失敗」バッジを表示する
 
 #### 出力（異常系）
-- 特定ソースがタイムアウト（10秒）した場合：そのソースをスキップしてログに `[WARN] {ソース名} timeout` を記録し、他ソースで処理を続行する
+- 特定ソースがタイムアウト（10秒）、危険な接続先、リダイレクト上限、または応答上限に達した場合：そのソースを失敗としてログに `[WARN]` を記録し、他ソースで処理を続行する
+- 記事本文URLが危険な接続先、リダイレクト上限、または応答上限に達した場合：`body_text: null` として続行する
 - 全ソースが失敗した場合：`[ERROR] All sources failed` をログに記録して処理を終了する（GitHub Actionsのワークフロー失敗通知で検知する）
 
 #### 依存関係
@@ -154,7 +160,7 @@ GitHub Actions ワークフロー（FR-01の直後に実行）
 3. Stage 1で選ぶ件数 `select_n` を `min(10, slot_max + 5)` で算出する（後工程のジャンル誤判定・重複除去の余裕分として+5、上限10件）
 4. 全記事のタイトル・冒頭700文字・有効ジャンル一覧を `SELECTION_PROMPT` に含め、Gemini Flash API に送信する。プロンプトは「該当ジャンルの記事のみを選ぶこと」をハード制約として明記する
 5. Gemini が初心者向けに面白い記事を最大 `select_n` 件選び、URLのみをJSON配列で返す
-6. 返却されたURLで元記事リストをフィルタし、選定記事を確定する
+6. 返却されたURLを正規化して元記事リストと照合し、収集済み記事だけで選定記事を確定する。未知URLは無視する
    - パース失敗・選定0件時：全件を Stage 2 へフォールバック
    - 選定件数が `select_n` を超過した場合：先頭から `select_n` 件に切り詰める（Gemini応答の途中切れ防止）
 
@@ -173,6 +179,7 @@ GitHub Actions ワークフロー（FR-01の直後に実行）
     - Geminiが返す過剰エスケープされた `\n`（リテラル文字列）を実改行に補正する（`title_ja`・`summary_ja`・`translation_ja`・`key_points`各項目）
     - `category` をGeminiの表記ゆれ（英語・日本語バリエーション）から正規4値へマッピングする（未知の値はそのまま返し、後段のジャンルフィルタで除外される）
     - Gemini が同じ URL を重複返却した場合は URL 正規化後に先着1件を残して重複除去する
+    - Stage 2の各出力は、Stage 2へ渡した選定済み記事の正規化URLと一致する場合だけ採用する。出力の `url` は照合に使った収集済み記事の元URLへ差し戻し、未知URLは通知・アーカイブへ渡さない
 11. 無効カテゴリ（`genres` がfalseのカテゴリ）を除外してから `importance` 降順でソートし、`slot_max` 件を選択する
 
 **補充（不足時のみ）**
@@ -365,10 +372,10 @@ GitHub Pages上の静的サイトでFR-04が保存したJSONを読み込み、�
 1. URLパラメータ `date` の値で `docs/data/{date}.json` をfetchする
 2. 記事を `importance` 降順で表示する
 3. 各記事カードに以下を表示する：カテゴリバッジ・重要度ドット・日本語タイトル・日本語要約・ソース名・全文翻訳ボタン・元記事リンク
-4. 「▼ 全文翻訳を見る」ボタンをクリックするとモーダルが開き、タイトル直下に `key_points`（最大3件の箇条書き）→ `translation_ja` のmarkdownレンダリングの順で表示する
+4. 「▼ 全文翻訳を見る」ボタンをクリックするとモーダルが開き、タイトル直下に `key_points`（最大3件の箇条書き）→ `translation_ja` の限定Markdownレンダリングの順で表示する
    - `key_points` が空配列の場合はブロックごと非表示にする（後方互換：フィールド自体が無い過去データも同様に非表示）
    - `translation_ja` が `null` の場合は「⚠️ この記事の翻訳を取得できませんでした」を表示する
-   - コードブロックはシンタックスハイライト付きで表示する
+   - コードブロックはシンタックスハイライト付きで表示する。`translation_ja` に含まれるHTMLはMarkdownとして解釈せず、文字列として表示する
 5. 「← 一覧に戻る」ボタンでSCR-01に戻る
 
 #### 処理フロー（SCR-03：検索結果）
@@ -624,7 +631,7 @@ cron-job.org が固定時刻（毎週土曜12:00 JST）で `workflow_dispatch` �
    - カテゴリ内訳フィールド：`🗞️ ニュース {n}件 / 🔬 研究 {n}件 / 💡 活用事例 {n}件 / 🛠️ ツール {n}件`
    - 注目記事トップ5フィールド：各記事を `[カテゴリバッジ] タイトル → URL` の箇条書きで列挙する
    - フッター：`Neura Weekly Digest`
-6. `DISCORD_WEBHOOK_URL` に対してPOSTリクエストを送信する
+6. `allowed_mentions: {"parse": []}` を含むペイロードを `DISCORD_WEBHOOK_URL` に対してPOSTリクエストを送信する。外部記事由来のタイトルに含まれるメンション表記は表示するが、Discordには解析させない
 7. HTTPステータス `204` を正常とする
    - `204` 以外の場合：ログに `[ERROR] Discord webhook failed: {status_code}` を記録して終了（リトライなし）
 
@@ -670,6 +677,10 @@ Discordチャンネルに以下が投稿される：
   - `DISCORD_WEBHOOK_URL`（Discord Webhook URL）→ architecture.mdの環境変数セクションに転記
   - `GITHUB_TOKEN`（GitHub Actions自動提供、明示的な設定不要）
 - ソースコードにAPIキー・Webhook URLをハードコードしない
+- `translation_ja` は限定Markdownだけをレンダリングし、入力中のHTMLは必ずエスケープして文字列表示する
+- 外部URLの取得は、設定ソースをHTTPSかつ公開IPに限定する。記事本文はHTTP/HTTPSを許可するが、いずれも公開IPだけへ接続し、解決済みIPへ接続先を固定する。リダイレクトは最大3回で、遷移先ごとに同じ検証を行う
+- フィードは1 MiB、記事HTMLは2 MiBまでとし、本文取得の同時実行数は5件までとする
+- `requirements.in` は直接依存だけを定義し、`requirements.txt` はハッシュ付き完全ロックとして管理する。CIは `pip install --require-hashes -r requirements.txt` を使用し、Actions参照は完全SHAへ固定する
 - **FR-06（設定管理）固有のセキュリティ：**
   - GitHub PAT（Personal Access Token）はユーザーがブラウザの `localStorage` に保存する
   - PATは同一オリジン（`https://{username}.github.io`）のJSのみ読み取り可能であり、第三者サーバーには送信しない
@@ -679,7 +690,7 @@ Discordチャンネルに以下が投稿される：
 
 ### NF-03：入力バリデーション
 - Gemini APIのレスポンスはJSONとしてパースを試みる。パース失敗時はNF-01のリトライ仕様に従って再試行し、全リトライを使い切った場合のみ `[ERROR] Gemini API failed after all retries` をログに記録して終了する（GitHub Actionsのワークフロー失敗通知で検知する）
-- 各記事のURLは `http://` または `https://` で始まることを確認する。それ以外はスキップする
+- 各記事のURLは `http://` または `https://` で始まることを確認する。それ以外はスキップする。記事本文の取得時は、DNS解決後の接続先が公開IPかも確認する
 
 ### NF-04：エラーハンドリング・ログ
 - 外部APIエラー時の挙動：
