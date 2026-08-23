@@ -1510,6 +1510,8 @@
       codeBlocks.push(`<pre>${label}<code>${highlighted}</code></pre>`);
       return `\x00CODE${codeBlocks.length - 1}\x00`;
     });
+    // translation_ja は外部記事・モデル出力由来。Markdownとして認識する記号以外は必ず文字列表示する。
+    s = escHtml(s);
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/^---$/gm, '<hr>');

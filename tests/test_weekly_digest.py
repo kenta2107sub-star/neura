@@ -71,6 +71,17 @@ def test_build_discord_payload_empty_articles():
     assert "計0件" in embed["title"]
 
 
+def test_build_discord_payload_disables_mentions_from_external_titles():
+    payload = weekly_digest.build_discord_payload(
+        [_article("@everyone <@123456789>", "ニュース", 5, "https://x.com/a")],
+        "2026-06-12",
+        "2026-06-18",
+    )
+
+    assert "@everyone" in payload["embeds"][0]["fields"][1]["value"]
+    assert payload["allowed_mentions"] == {"parse": []}
+
+
 def test_main_skips_when_no_data_for_week(monkeypatch, tmp_path):
     index_path = tmp_path / "index.json"
     index_path.write_text(json.dumps({"digests": []}), encoding="utf-8")

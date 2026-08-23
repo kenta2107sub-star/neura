@@ -90,6 +90,46 @@ def test_normalize_url_strips_trailing_slash_and_query():
     assert summarize.normalize_url("https://x.com/a/?ref=foo") == "https://x.com/a/"
 
 
+def test_canonicalize_model_results_keeps_only_selected_source_urls(capsys):
+    selected = [
+        _collected(title="正規記事", url="https://example.com/article/?utm=source"),
+    ]
+    raw = [
+        {"url": "https://example.com/article/?utm=model", "title_ja": "安全な記事", "summary_ja": "要約",
+         "key_points": [], "translation_ja": None, "category": "ニュース", "importance": 5},
+        {"url": "http://169.254.169.254/latest/meta-data", "title_ja": "未知", "summary_ja": "要約",
+         "key_points": [], "translation_ja": None, "category": "ニュース", "importance": 5},
+    ]
+
+    result = summarize.canonicalize_model_results(raw, selected)
+
+    assert len(result) == 1
+    assert result[0]["url"] == "https://example.com/article/?utm=source"
+    assert result[0]["source"] == "RSS"
+    assert result[0]["published_at"] == "2026-06-18T00:00:00Z"
+    log = capsys.readouterr().out
+    assert "未知URL=1" in log
+    assert "169.254.169.254" not in log
+
+
+def test_canonicalize_model_results_deduplicates_and_normalizes_newlines():
+    selected = [_collected(url="https://example.com/article")]
+    raw = [
+        {"url": "https://example.com/article", "title_ja": "題\\n名", "summary_ja": "要約",
+         "key_points": ["点\\n1"], "translation_ja": "本文\\n", "category": "News", "importance": 5},
+        {"url": "https://example.com/article/", "title_ja": "重複", "summary_ja": "要約",
+         "key_points": [], "translation_ja": None, "category": "ニュース", "importance": 5},
+    ]
+
+    result = summarize.canonicalize_model_results(raw, selected)
+
+    assert len(result) == 1
+    assert result[0]["title_ja"] == "題\n名"
+    assert result[0]["key_points"] == ["点\n1"]
+    assert result[0]["translation_ja"] == "本文\n"
+    assert result[0]["category"] == "ニュース"
+
+
 def test_build_selection_prompt_contains_title_and_url():
     arts = [_collected(title="GPT-5登場", url="https://x.com/gpt5", body="本文")]
     prompt = summarize.build_selection_prompt(arts, n=5)

@@ -97,6 +97,61 @@ def normalize_category(cat: str | None) -> str:
     return cat
 
 
+def canonicalize_model_results(
+    raw_results: list,
+    allowed_articles: list[CollectedArticle],
+    seen_urls: set[str] | None = None,
+) -> list[Article]:
+    """Gemini出力を選定済みの収集記事に限定し、URLとメタデータを正規化する。"""
+    originals = {
+        normalize_url(article["url"]): article
+        for article in allowed_articles
+        if isinstance(article.get("url"), str)
+    }
+    seen = seen_urls if seen_urls is not None else set()
+    accepted: list[Article] = []
+    invalid_count = 0
+    unknown_count = 0
+    duplicate_count = 0
+
+    for item in raw_results:
+        if not isinstance(item, dict) or not isinstance(item.get("url"), str):
+            invalid_count += 1
+            continue
+        key = normalize_url(item["url"])
+        original = originals.get(key)
+        if not original:
+            unknown_count += 1
+            continue
+        if key in seen:
+            duplicate_count += 1
+            continue
+
+        normalized = dict(item)
+        for field in ("title_ja", "summary_ja", "translation_ja"):
+            if isinstance(normalized.get(field), str):
+                normalized[field] = normalized[field].replace("\\n", "\n")
+        if isinstance(normalized.get("key_points"), list):
+            normalized["key_points"] = [
+                point.replace("\\n", "\n") if isinstance(point, str) else point
+                for point in normalized["key_points"]
+            ]
+        normalized["category"] = normalize_category(normalized.get("category"))
+        normalized["url"] = original["url"]
+        normalized["source"] = original["source"]
+        normalized["published_at"] = original["published_at"]
+        seen.add(key)
+        accepted.append(normalized)  # type: ignore[arg-type]
+
+    rejected_count = invalid_count + unknown_count + duplicate_count
+    if rejected_count:
+        print(
+            "[WARN]  summarize: Stage 2の不正出力を除外 "
+            f"(形式={invalid_count}, 未知URL={unknown_count}, 重複URL={duplicate_count})"
+        )
+    return accepted
+
+
 def select_articles(result: list[Article], genres: dict[str, bool], max_articles: int = MAX_ARTICLES) -> list[Article]:
     """無効カテゴリ(genres=false)を除外し、重要度降順で上位 max_articles 件を返す。"""
     enabled = {g for g, on in genres.items() if on}
@@ -251,37 +306,11 @@ def main() -> None:
 
     # ── Stage 2: 選定記事を翻訳・要約 ────────────────────────────────
     print(f"[INFO]  summarize: Stage 2 翻訳・要約（{len(selected)}件）")
-    result = _call_gemini_json(client, build_prompt(selected, config["gemini_prompt"]), types, response_schema=article_schema)
-
-    # Geminiが改行を過剰エスケープし、JSON文字列内に本物の改行ではなく
-    # リテラルな "\n"（バックスラッシュ+n の2文字）を返すことがあるため補正する
-    for r in result:
-        for field in ("title_ja", "summary_ja", "translation_ja"):
-            if isinstance(r.get(field), str):
-                r[field] = r[field].replace("\\n", "\n")
-        if isinstance(r.get("key_points"), list):
-            r["key_points"] = [
-                kp.replace("\\n", "\n") if isinstance(kp, str) else kp
-                for kp in r["key_points"]
-            ]
-
-    # カテゴリ正規化（Geminiが英語や日本語バリエーションを返す場合に備える）
-    raw_cats = [r.get("category") for r in result]
-    print(f"[INFO]  summarize: Gemini返却カテゴリ（正規化前）: {raw_cats}")
-    for r in result:
-        r["category"] = normalize_category(r.get("category"))
-
-    # Gemini が同じ URL を重複して返すケースを除去
-    seen_urls: set[str] = set()
-    deduped: list[Article] = []
-    for r in result:
-        key = normalize_url(r.get("url", ""))
-        if key and key not in seen_urls:
-            seen_urls.add(key)
-            deduped.append(r)
-    if len(deduped) < len(result):
-        print(f"[WARN]  summarize: Gemini重複 {len(result) - len(deduped)}件を除去")
-    result = deduped
+    raw_result = _call_gemini_json(
+        client, build_prompt(selected, config["gemini_prompt"]), types, response_schema=article_schema,
+    )
+    result = canonicalize_model_results(raw_result, selected)
+    seen_urls = {normalize_url(article["url"]) for article in result}
 
     # FR-06：無効カテゴリ（genres=false）を除外してから重要度上位を選定する
     result_sorted = select_articles(result, slot_genres, slot_max)
@@ -312,20 +341,7 @@ def main() -> None:
                 backfill_result = _call_gemini_json(
                     client, build_prompt(backfill_selected, config["gemini_prompt"]), types, response_schema=article_schema
                 )
-                for r in backfill_result:
-                    for field in ("title_ja", "summary_ja", "translation_ja"):
-                        if isinstance(r.get(field), str):
-                            r[field] = r[field].replace("\\n", "\n")
-                    if isinstance(r.get("key_points"), list):
-                        r["key_points"] = [
-                            kp.replace("\\n", "\n") if isinstance(kp, str) else kp
-                            for kp in r["key_points"]
-                        ]
-                    r["category"] = normalize_category(r.get("category"))
-                    key = normalize_url(r.get("url", ""))
-                    if key and key not in seen_urls:
-                        seen_urls.add(key)
-                        result.append(r)
+                result.extend(canonicalize_model_results(backfill_result, backfill_selected, seen_urls))
 
                 result_sorted = select_articles(result, slot_genres, slot_max)
                 print(f"[INFO]  summarize: 補充後 → {len(result_sorted)}件選出")
@@ -336,15 +352,6 @@ def main() -> None:
 
     if len(result_sorted) < slot_max:
         print(f"[WARN]  summarize: Only {len(result_sorted)} articles selected")
-
-    # 元記事の source / published_at を URL 照合で復元する
-    url_map = {normalize_url(a["url"]): a for a in articles}
-    for item in result_sorted:
-        original = url_map.get(normalize_url(item.get("url", "")), {})
-        if not original:
-            print(f"[WARN]  summarize: URL照合失敗 → {item.get('url')}")
-        item["source"] = original.get("source", "")
-        item["published_at"] = original.get("published_at", "")
 
     save_json(OUTPUT_PATH, result_sorted)
     print(f"[INFO]  summarize: 完了 → {len(result_sorted)}件選出 → {OUTPUT_PATH}")

@@ -15,11 +15,11 @@
 | カテゴリ | 採用技術 | バージョン | 選定理由 |
 |---|---|---|---|
 | 言語 | Python | 3.11 | データ収集・HTTP処理・AI API連携すべてに対応。GitHub Actionsとの親和性が高く、asyncioによる並列HTTPリクエストが容易 |
-| 非同期HTTP | aiohttp | 3.9 | asyncioと組み合わせて全ソースへの並列リクエストを実現。requests と異なり async/await で書けるため並列収集のコードが簡潔 |
+| 非同期HTTP | aiohttp | 3.14.3 | asyncioと組み合わせて全ソースへの並列リクエストを実現。requests と異なり async/await で書けるため並列収集のコードが簡潔 |
 | RSS解析 | feedparser | 6.0 | RSSおよびAtomフィードのパースに特化。エンコーディング・日付の正規化を自動処理するため自前パースが不要 |
 | 本文抽出 | trafilatura | 1.12.2 | 記事URLから本文テキストを抽出するライブラリ。広告・ナビゲーション等のノイズを除去し、コードブロックを含む本文だけを返す。ペイウォール・403の場合はNoneを返す（1.8系は依存衝突のため1.12系を採用） |
-| AI要約・翻訳 | google-genai | 1.x | Gemini Flash（gemini-2.5-flash）の無料枠（1500 req/日）を使用。Stage 1（選定）・Stage 2（翻訳）の2段階呼び出しで要約・全文翻訳・カテゴリ分類・重要度スコアリングを処理 |
-| Discord通知 | requests | 2.31 | Discord Webhook へのPOSTのみ。asyncio不要の単純なHTTPリクエストなのでrequestsで十分 |
+| AI要約・翻訳 | google-genai | 2.19.0 | Gemini Flash（gemini-2.5-flash）の無料枠（1500 req/日）を使用。Stage 1（選定）・Stage 2（翻訳）の2段階呼び出しで要約・全文翻訳・カテゴリ分類・重要度スコアリングを処理 |
+| Discord通知 | requests | 2.33.0 | Discord Webhook へのPOSTのみ。asyncio不要の単純なHTTPリクエストなのでrequestsで十分 |
 | スケジューラ | GitHub Actions + cron-job.org | - | GitHub Actionsの`schedule`は1〜4時間遅延するため、外部の無料cronサービスcron-job.orgから正確な時刻に`workflow_dispatch`を叩く方式を採用（`daily.yml`に`schedule:`ブロックは存在しない）。無料枠2000分/月で1回5分以内の実行なら余裕で収まる |
 | フロントエンド | バニラHTML/CSS/JS | - | フレームワーク不要の静的1ファイル構成。GitHub Pagesで即時配信可能。ビルドステップが不要でメンテが容易 |
 | ホスティング | GitHub Pages | - | GitHubリポジトリの `docs/` フォルダを直接配信。月額ゼロ・CDN付き・カスタムドメイン対応 |
@@ -142,7 +142,8 @@ neura/                                    ← プロジェクトルート
 │   └── data/
 │       ├── index.json                    # 日付×時刻ごとのdigestメタ情報一覧（降順・最新100件、各エントリが`file`キーで対応する日次JSONファイル名を持つ）
 │       └── {YYYY-MM-DD}_{HH}.json       # 日次記事データ（1配信スロットごとに1ファイル。Actions実行ごとに自動生成）
-├── requirements.txt                      # Python依存パッケージ一覧
+├── requirements.in                       # 直接依存の定義
+├── requirements.txt                      # ハッシュ付き完全ロック
 ├── .env.example                          # 環境変数テンプレート（コミット対象）
 └── README.md
 ```
@@ -166,7 +167,8 @@ neura/                                    ← プロジェクトルート
 | `docs/index.html` | GitHub Pagesで配信する静的サイト本体。SCR-01（月別折りたたみ一覧）・SCR-02（日次詳細・全文翻訳展開・既読管理）・SCR-03（キーワード検索・既読管理）をバニラJSで実装。既読状態は`localStorage`の`neura_read_articles`キーで管理する（FR-07）。markdownレンダリング・シンタックスハイライトもインライン実装（外部CDN不使用） |
 | `docs/data/index.json` | 日付×時刻ごとのdigestメタ情報（`date`・`time`・`file`・`count`・`categories`・`titles`）を降順配列で保持。`archive.py` が毎回更新する。同一`(date, time)`は上書き、100件超は古い順に削除 |
 | `docs/data/{YYYY-MM-DD}_{HH}.json` | 1配信スロット分の記事データ。`archive.py` が生成。GitHub Pagesから直接fetchされる |
-| `requirements.txt` | `aiohttp`・`feedparser`・`trafilatura`・`google-genai`・`requests` のバージョン固定 |
+| `requirements.in` | `aiohttp`・`feedparser`・`trafilatura`・`google-genai`・`requests` の直接依存と正確なバージョンを定義する。依存更新時はこのファイルを変更する |
+| `requirements.txt` | `uv pip compile requirements.in --generate-hashes --output-file requirements.txt` で生成するハッシュ付き完全ロック。推移依存を含め、実行環境とCIは `pip install --require-hashes -r requirements.txt` で導入する |
 | `.env.example` | 環境変数テンプレート。実際の値は入れずにGitにコミットする |
 
 ---
@@ -224,17 +226,17 @@ jobs:
       actions: write         # Pages デプロイ失敗時の再実行トリガーに必要
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install --require-hashes -r requirements.txt
 
       - name: Collect articles (FR-01)
         run: python scripts/collect.py
@@ -275,15 +277,15 @@ jobs:
   remind:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install --require-hashes -r requirements.txt
 
       - name: Send unread reminder (FR-08)
         env:
@@ -305,15 +307,15 @@ jobs:
   weekly-digest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install --require-hashes -r requirements.txt
 
       - name: Send weekly digest (FR-09)
         env:

@@ -11,6 +11,7 @@
 - [技術スタック](#技術スタック)
 - [セットアップ](#セットアップ)
 - [使い方](#使い方)
+- [依存関係の更新](#依存関係の更新)
 - [ディレクトリ構成](#ディレクトリ構成)
 - [環境変数](#環境変数)
 
@@ -30,13 +31,13 @@ Neura は GitHub Actions を起点に、Hacker News・Reddit・各種 RSS フィ
 
 ## 機能
 
-- **AIニュース収集**：Hacker News / Reddit / TechCrunch AI / MIT Technology Review AI / VentureBeat AI / Zenn / Qiita / ITmedia AI+ / はてなブックマーク（10 ソース）から AI 関連記事を並列取得
-- **日本語要約・分類**：Gemini Flash API（`gemini-2.5-flash`）で日本語タイトル・要約・伝えたいこと（key_points）・全文翻訳・カテゴリ（ニュース / 研究 / 活用事例 / ツール）・重要度を自動生成
+- **AIニュース収集**：Hacker News / Reddit / TechCrunch AI / MIT Technology Review AI / VentureBeat AI / Zenn / Qiita / ITmedia AI+ / はてなブックマーク（10 ソース）から AI 関連記事を並列取得。設定したRSSはHTTPSかつ公開IPアドレスへの接続だけを受け付けます
+- **日本語要約・分類**：Gemini Flash API（`gemini-2.5-flash`）で日本語タイトル・要約・伝えたいこと（key_points）・全文翻訳・カテゴリ（ニュース / 研究 / 活用事例 / ツール）・重要度を自動生成。AIの返したURLは収集済み記事と照合してから公開します
 - **Discord 通知**：1 日最大 3 回、定刻に Webhook でダイジェストを配信。カテゴリバッジ・重要度・key_points 付きで、記事タイトルにメンション表記が含まれていても意図しないメンション通知は発生しません（6,000 字を超える場合は重要度の低い記事から自動調整）
 - **既読管理**：ブラウザの `localStorage` に既読状態を記録し、読んだ記事をアーカイブサイト上で視覚的に区別
 - **未読リマインド**：前日の配信を見ていない場合、翌朝 9 時に Discord へリマインドを送信
 - **週次ダイジェスト**：毎週土曜 12 時に、直近 7 日分の件数サマリー・カテゴリ内訳・注目記事トップ 5 を配信
-- **アーカイブサイト**：GitHub Pages で過去ダイジェストを日付別に閲覧可能。全文翻訳のモーダル表示・キーワード検索対応
+- **アーカイブサイト**：GitHub Pages で過去ダイジェストを日付別に閲覧可能。全文翻訳のモーダル表示・キーワード検索対応。翻訳内のHTMLは実行せず、文字列として表示します
 - **ブラウザ設定画面**：GitHub Contents API 経由で収集ソース・キーワード・Gemini プロンプト・実行時刻（最大 3 スロット）を変更可能（PAT を localStorage に保存。cron-job.org 連携で時刻とスロットの有効 / 無効を自動同期）
 
 ---
@@ -46,15 +47,16 @@ Neura は GitHub Actions を起点に、Hacker News・Reddit・各種 RSS フィ
 | カテゴリ | 技術 |
 |---|---|
 | 言語 | Python 3.11 |
-| 非同期 HTTP | aiohttp 3.9 |
+| 非同期 HTTP | aiohttp 3.14.3 |
 | RSS 解析 | feedparser 6.0 |
 | 本文抽出 | trafilatura 1.12.2 |
 | AI 要約 | Gemini Flash API（`gemini-2.5-flash`、無料枠 1500 req/日） |
-| Discord 通知 | requests 2.31 |
+| Discord 通知 | requests 2.33.0 |
 | スケジューラ | GitHub Actions（`workflow_dispatch`）+ cron-job.org（無料の外部 cron。GitHub Actions の `schedule` は数時間遅延するため正確な時刻起動に使用） |
 | フロントエンド | バニラ HTML/CSS/JS（1 ファイル完結） |
 | ホスティング | GitHub Pages（`docs/` フォルダを配信） |
 | データ保存 | JSON ファイル（Git リポジトリ内） |
+| 依存管理 | `requirements.in` とハッシュ付き `requirements.txt` |
 
 ---
 
@@ -73,7 +75,7 @@ Neura は GitHub Actions を起点に、Hacker News・Reddit・各種 RSS フィ
 ```bash
 git clone https://github.com/{ユーザー名}/neura.git
 cd neura
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.txt
 cp .env.example .env
 # .env を編集して GEMINI_API_KEY・DISCORD_WEBHOOK_URL を記入する
 ```
@@ -109,6 +111,19 @@ python scripts/notify.py
 ```
 
 GitHub Actions での本番実行：リポジトリの **Actions** タブ → 「Neura Daily Digest」「Neura Unread Reminder」「Neura Weekly Digest」からそれぞれ「Run workflow」で手動実行できます。
+
+---
+
+## 依存関係の更新
+
+`requirements.in` には直接使うパッケージだけを記載します。依存関係を追加・更新したら、`uv` でハッシュ付きの `requirements.txt` を作り直し、両方をコミットしてください。
+
+```bash
+uv pip compile requirements.in --generate-hashes --output-file requirements.txt
+pip install --require-hashes -r requirements.txt
+```
+
+GitHub Actions でも同じハッシュ検証付きインストールを使います。`requirements.txt` だけを手で書き換えないでください。
 
 ---
 
@@ -167,9 +182,10 @@ neura/
 │   ├── archive.py             # JSON 保存・git コミット
 │   ├── remind.py              # 未読リマインド送信
 │   └── weekly_digest.py       # 週次ダイジェスト送信
-├── tests/                     # Python pytest テスト（81 件）と Node.js 回帰テスト（8 件）
+├── tests/                     # Python pytest テストと Node.js 回帰テスト
 ├── .env.example               # 環境変数テンプレート
-├── requirements.txt
+├── requirements.in            # 直接依存の定義
+├── requirements.txt           # ハッシュ付き完全ロック
 └── README.md
 ```
 
