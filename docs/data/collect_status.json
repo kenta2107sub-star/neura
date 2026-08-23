@@ -1,17 +1,17 @@
 {
-  "run_at": "2026-08-21T10:00:56Z",
+  "run_at": "2026-08-23T10:00:56Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
       "count": 100
     },
     "Reddit r/artificial": {
-      "status": "ok",
-      "count": 25
-    },
-    "Reddit r/MachineLearning": {
       "status": "failed",
       "count": 0
+    },
+    "Reddit r/MachineLearning": {
+      "status": "ok",
+      "count": 5
     },
     "TechCrunch AI": {
       "status": "ok",
