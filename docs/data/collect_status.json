@@ -1,29 +1,29 @@
 {
-  "run_at": "2026-09-02T10:01:04Z",
+  "run_at": "2026-09-04T10:00:56Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
-      "count": 97
+      "count": 93
     },
     "Reddit r/artificial": {
-      "status": "ok",
-      "count": 24
-    },
-    "Reddit r/MachineLearning": {
       "status": "failed",
       "count": 0
     },
+    "Reddit r/MachineLearning": {
+      "status": "ok",
+      "count": 7
+    },
     "TechCrunch AI": {
       "status": "ok",
-      "count": 20
+      "count": 19
     },
     "MIT Technology Review AI": {
       "status": "ok",
       "count": 10
     },
     "VentureBeat AI": {
-      "status": "ok",
-      "count": 7
+      "status": "failed",
+      "count": 0
     },
     "Zenn AI": {
       "status": "ok",
