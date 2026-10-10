@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-10",
+  "time": "19:00",
+  "generated_at": "2026-10-10T10:05:58Z",
+  "articles": [
+    {
+      "url": "https://github.com/franzenzenhofer/big-arrow-on-the-screen",
+      "title_ja": "AIエージェントが画面に指示表示",
+      "summary_ja": "AIエージェントがMacの画面上に矢印やテキストを表示し、ユーザーに操作を指示できるツールです。AIが直接クリックできない場面で、人間への指示出しを視覚的にサポートし、作業効率を向上させます。",
+      "key_points": [
+        "AIが画面に矢印やテキストを表示",
+        "人間への操作指示を視覚的に支援",
+        "Macでの作業効率向上に貢献"
+      ],
+      "translation_ja": "## AIエージェントが画面に大きな矢印、ボックス、テキストを表示\n\n`big-arrow-on-the-screen` (`bigarrow`) は、macOSのコマンドラインツールであり、`Claude Code`と`Codex`用のスキルです。すべてのウィンドウの上に矢印とサインを描画します。クリックは透過し、キーボードのフォーカスは維持され、矢印は自動的に消えます。`MIT`ライセンスです。\n\n**目的**: AIエージェントはモノレポのリファクタリング、マイグレーションの記述、モナドの説明などを行えますが、ユーザーにボタンをクリックさせる必要がある場合、「ダイアログで許可をクリックしてください」と、ユーザーが見ていないターミナルに表示するだけです。\n\n`bigarrow`はAIに「指」を与えます。\n\n```bash\nbigarrow point --element \"Allow\" --app \"System Settings\" --text \"Franz, click Allow: Ghostty may control your Mac\"\n```\n\nこれは、すべてのディスプレイとすべてのスペースで、すべてのものの上に一つの透明なウィンドウを表示します。描画にはmacOSの許可は一切不要です。一つの`Swift`バイナリであり、デーモン、メニューバーアイコン、アカウント、テレメトリー、そして（二重に確認しましたが）AIは含まれていません。それはただの矢印です。\n\n実際のMac（macOS 27）で、実際の`bigarrow`が`scripts/real-scenes.sh`によってステージングされています。\n\n「Macアップデート史上最も迷惑な変更」が6つの矢印で修正されました（MP4）。\n\n```bash\nopen \"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility\"\nbigarrow start --element Terminal_Toggle --app \"System Settings\" \\\n--text \"Franz, switch this on: Terminal may control your Mac\" --from right --color green --close-button\nbigarrow start --element Add --role button --app \"System Settings\" \\\n--text \"Not in the list? Plus. Then find it.\" --from bottom-right --style ring --color orange --shape zigzag --size S\nbigarrow start --element Animate --app Keynote --role radiobutton --text \"1. Click Animate\" --from right \\\n--style ring --color purple\nbigarrow start --element \"Add an Effect\" --app Keynote --text \"2. Add an Effect\" --from right \\\n--style box --corners sharp --color \"#FF9F0A\" --shape straight\nbigarrow start --element Play --app Keynote --role button --text \"3. Press play. Bask in the applause.\" \\\n--from top --color teal --shape zigzag --size S\nbigarrow start --element PDF --role button --app TextEdit \\\n--text \"Mom, click PDF, then Save as PDF\" --from bottom --color pink --border white-black\nbigarrow start --element Cancel --role button --app TextEdit \\\n--text \"Not this one, Mom\" --from bottom-right --color black --size S\nbigarrow start --app \"Google Chrome:Sourdough\" --element \"Sourdough - Wikipedia\" --role radiobutton \\\n--text \"It's this tab, not the other 13\" --from top --shape zigzag --color \"#5856D6\" --size L\n--app \"App:tab title\"\n```\n\nウィンドウを前面に表示し、タブを最初に選択します。\n\n```bash\nbigarrow start --element \"icon view\" --role radiobutton --app Finder \\\n--text \"Not this one\" --from top-left --style ring --color black --size S\nbigarrow start --element Group --role menubutton --app Finder \\\n--text \"No, the other grid icon. This one.\" --from top --style box --color green\n```\n\nガイド全体は6ページの`PDF`で、すべてのスクリーンショットはエージェントが描画した矢印です。`PDF`をダウンロードするか、ここで読むことができます。\n\nサイン内の`{{value}}`はコピーボタンになります。クリックして貼り付けます。\n\n```bash\nbigarrow start --element \"PIN code\" --role textfield --app \"Google Chrome:Acme sign-in\" --from right \\\n--color blue --border-color yellow --text-color yellow --text \"Franz, copy & paste the PIN {{482913}} here\"\n```\n\n**なぜ今なのか？**\n\n矢印は旧石器時代から存在します。変わったのは、エージェントがMacで**実際の作業**を行うようになり、遅かれ早かれ人間だけが行えるステップ、または人間が学びたいステップに遭遇するようになったことです。\n\n- 「許可をクリックしてください。」許可プロンプト、`OAuth`同意、「…で開く？」。エージェントはボタンを見つけますが、押してはいけない、または押すことができません。**指し示す**ことはできます。\n- 「あなたの番です。」`2FA`、`CAPTCHA`、パスキー、支払い、署名。エージェントが指し示し、あなたが決定し、エージェントが続行します。\n- 「これを貼り付けてください。」コード、`URL`、コマンド：サイン上にコピーボタンがあります。\n- 「あなたが必要です、そしてあなたはコーヒーを淹れている。」`--say`はサインを読み上げます。あなたのMacが文字通りあなたをデスクに呼び戻します。\n- 「やり方を見せてください。」`Blender`で何かをする方法を尋ねると、エージェントが各コントロールを順番に指し示します。製品ツアーから製品自体を引いたものです。\n- 他の人を助ける。親のMacで、または画面共有で、「上にあるボタン、いや、もう一つの上」と言うよりも指し示す方が明確です。\n- デモとドキュメント。録画中にハイライト表示したり、`--png`で直接`PNG`にレンダリングしたりします。\n- 座標のデバッグ。アクセシビリティまたは`Peekaboo`の座標を指し示して確認します。\n`--dry-run --json`はどこを指し示すかを教えてくれます。\n\nこれはスクリーンアノテーターでも、クリックボットでも、スクリーンショットツールでもありません。クリックしたり、入力したり、キャプチャしたりすることは決してありません。**意図的に**指し示すだけです。\n\n**インストール**:\n\n```bash\nbrew install franzenzenhofer/tap/bigarrow\nbigarrow install-skill # teaches Claude Code (~/.claude/skills) and Codex (~/.agents/skills)\n```\n\nソースから: `swift build -c release` (`Xcode 16+`, `macOS 14+`)、バイナリは `.build/release/bigarrow` にあります。バイナリは純粋な`Swift`です。`scripts/`はスクリーンショットを記録し、テストを実行するだけです。\n\n```bash\nbigarrow point --element \"Allow\" --app \"System Settings\" --text \"Franz, click Allow\" # by label\nbigarrow point --at 760,500 --text \"Franz, click HERE\" # \n```",
+      "category": "ツール",
+      "importance": 5,
+      "source": "HackerNews",
+      "published_at": "2026-10-09T11:03:48Z"
+    },
+    {
+      "url": "https://jessewaites.com/blog/post/i-pointed-ai-at-400-years-of-archives/",
+      "title_ja": "AIで歴史アーカイブを調査",
+      "summary_ja": "AIを使って400年分の歴史アーカイブを調査し、忘れられた隕石の報告、失われたサイ、未記録の火山噴火などを発見した事例です。AIが膨大な情報を効率的に分析し、新たな歴史的発見を可能にする方法がわかります。",
+      "key_points": [
+        "AIで膨大な歴史文書を分析",
+        "忘れられた歴史的記録を発見",
+        "AIによる効率的な情報探索"
+      ],
+      "translation_ja": "AIを使って数百万件の歴史的記録を調査し、忘れられた隕石の報告、3頭の失われたサイ、未記録の火山噴火などを発見した方法について。\n\n## インスピレーション\n\n2026年10月1日、歴史家のBenjamin Breenが`Opus 5.5`を使って、絶滅したドードーの新たな目撃記録をオランダ東インド会社のデジタル化された記録から発見した記事に触発されました。同社は1602年から1799年までアジア全域で香辛料貿易を支配していました。\n\n`GLOBALISE`というプロジェクトは、同社の手書きの数百万ページを検索可能なテキストに変換しました。`AI`を使ってこれらの転写を検索したところ、Breenは1615年の船の航海日誌に、マウリティウスで船員が「多くのカメ、ドードーを捕獲した」という記述を発見しました。400年間も目の前にあった、絶滅したドードーの新たな目撃記録です。\n\n私はその記事を読み、すぐに「私にもできる」と思いました。\n\n私が歴史家だからではなく、`AI`エージェントの操作とエージェントワークフローの作成に非常に長けたソフトウェアエンジニアだからです。Breenの投稿はインスピレーションであり、私はそのアプローチを拡張したいと考えました。複数の異なる歴史的謎を並行して検索し、いくつかの異なる`AI`モデルを組み合わせて結果をフィルタリングし、面倒で時間のかかる手動ステップのいくつかを自動化できると考えたのです。\n\nしかし、その魅力は技術的な挑戦だけにとどまりませんでした。私たちが知っていることに何かを加えることには、名誉あるものがあると思います。ニッチな分野に**たった一つの新しいデータポイント**を加えるだけでも、小さくても価値ある貢献だと感じました。それができたら本当に素晴らしいだろうと思いました。\n\n私は小さくても有能な自宅の`AI`ラボを起動し、作業に取り掛かりました。\n\n## 計画\n\nまず、`AI`の「`Deep Research`」アシスタントに質問しました。「オンラインにすでに存在するデータで解決できそうな未解決の歴史的疑問は何か？」と。その結果、データの完全性とアクセスしやすさ、`AI`がどれだけ役立つか、すでに誰かが行っているか、そして最も重要なこととして、**元のページと照合して答えを確認できるか**という基準でランク付けされた13の候補が挙がりました。最後の基準は、思っている以上に重要です。`AI`モデルは自信を持って間違えることがあるため、すべての主張は**実際の文書**、つまり手書きの手紙や印刷された新聞の**実際のスキャン**で終わる必要があり、誰でも調べて読むことができるアーカイブ参照が付いている必要がありました。リストには、オランダ東インド会社アーカイブの動物、誰も場所を特定できていない1808年の巨大な火山噴火、古いオランダの新聞に記載された地震、未記録の隕石落下、完全に姿を消した船などが含まれていました。\n\n次に、`Anthropic`の`AI`ツールである`Claude Code`と協力し、この研究パイプラインを一緒に考案しました。\n\n## 資料\n\nまず、読み物として、オランダ東インド会社アーカイブの`GLOBALISE`転写（1600年代から1790年代までの435万ページ）、オランダ国立図書館のデジタル化された新聞、2世紀にわたるアメリカの新聞、そして念のためいくつかの船の航海日誌を用意しました。\n\nもし私がオランダ東インド会社のページだけを自分で読み始めたら、1ページ2分、1日8時間、週5日として、約70年かかるでしょう。そして、それは新聞を読む前の話です。私の自作`AI`ラボは、**12時間の夜間実行**でアーカイブ全体を処理しました。\n\n## 課題と解決策\n\n古い文書の問題は、誰も同じスペルを二度と使わないことです。手書きや古い印刷物は、テキスト認識からエラーだらけで出てきますし、17世紀のオランダ語では「サイ（rhinoceros）」を約15通りの異なる方法で綴っていました。単純なキーワード検索では、探しているもののほとんどを見逃してしまうでしょう。その夜間実行では、私のグラフィックカードがすべての文章をその意味の**数学的フィンガープリント**に変換しました。オランダ東インド会社アーカイブだけでも570万の文章です。これにより、単にどの単語が使われているかだけでなく、**文章が何について書かれているか**で検索できるようになりました。\n\nそれでも、一度の検索で数万件のヒットが返されることがあり、人間、あるいは大規模な`AI`モデルでさえ、手頃なコストで読むには多すぎます。代わりに、最初の読み込みは、小型で高速な「`System One`」決定モデル**Jev**に任せました。これは「これは本物の動物か？」「野生か？」「どこにいるか？」といった狭い質問にのみ答えます。100万語あたり数セントのコストです。59,000件の象の言及を読ませるのに約3ドルかかりました。\n\nこれがこのプロジェクトで私が最も誇りに思っている部分であり、`AI`ではなく私のアイデアでした。`Jev`をフィルタリングメカニズムとして使用することを提案したとき、`Claude Code`の`Fable`モデルはまだ`System One`タイプの決定モデルが何であるかを知りませんでした。パイプラインを構築する前に、そのアイデアを説明する必要がありました。このようなほとんどの研究では、ボトルネックは候補となる文章を一つずつ読み、どれが詳しく調べる価値があるかを決定する人間です。その役割に安価で高速な判断モデルを置くことで、初期スクリーニングが自動化され、私は最も有力な候補と調査の方向性に集中できるようになりました。私が詳しく調べたページは、すでに2回の機械読み込みを生き残ったものでした。",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "HackerNews",
+      "published_at": "2026-10-09T11:36:20Z"
+    },
+    {
+      "url": "https://togetter.com/li/2756407",
+      "title_ja": "AIがフォントを自作した話",
+      "summary_ja": "AIが有料フォントの購入を提案してきたため、フリーフォントを探すよう指示したところ、なんとAIがフォントを自作し始めたという驚きの事例です。AIの創造性と問題解決能力の高さがわかる、面白くてユニークな活用例です。",
+      "key_points": [
+        "AIが有料フォント購入を提案",
+        "フリーフォント指示でAIが自作",
+        "AIの創造性と問題解決能力"
+      ],
+      "translation_ja": "はるか/C108土曜東2\"ツ07b\"＆日曜西1\"と20b\"\n@YT_HARUKA\nウチのAIは有料フォント買いましょうかとか言い出したからお前にそんな権限は無いからね？フリーフォント探そうね？お財布は預けて無いよ？ って釘刺したら、なんかフォント自作しよったわ\n2026-10-09 15:10:19\n手動人形\n@Manualmaton\n@YT_HARUKA プラグイン古いんだけど言ったら「じゃあこれをヘッダに流し込め」でJavaScript一本で解決しよりましたわ pic.x.com/jAVfLwtytG\n2026-10-09 16:20:16\nAIが自作フォントを出してきた！？\nかにみそん\n@kanimison2018\nこういうのあるからAIってたまらんよな その発想はなかった(発想はできるが労力で無意識に除外してた)ってこと提案してきて問題解決とか発展してうれしい x.com/YT_HARUKA/stat…\n2026-10-09 22:19:25\nヒグマざき\n@sinozaki2\n@YT_HARUKA 「これはやっちゃダメ」と「とりあえず提案考えて？」を指示の前提に作業開始すると、自分のできる範囲で「なんか頑張ったらできたわ」してくるからAIは面白い。 たまに無茶するから「いい案が思いつくか、⚪︎分で案でなかったた一回止まって報告してね」も入れとくと良いとされる。\n2026-10-09 17:42:50\nでもそれ、本当に『自作』なのかな？\nStraylight\n@straylight2021\nこれはすごい。でも、存在しない漢字とか、入ってそう・・。それに、どこかに出典となるフォントが実在しそう。 x.com/YT_HARUKA/stat…\n2026-10-09 21:28:36",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "HatenaBookmark",
+      "published_at": "2026-10-10T00:50:20Z"
+    },
+    {
+      "url": "https://qiita.com/aibars/items/42d9f3150983626d717e",
+      "title_ja": "AIエージェントでComfyUIを操作",
+      "summary_ja": "AIエージェント（Claude Codeなど）からローカルで動作する画像生成ツールComfyUIを操作するSkillが開発されました。短い指示から詳細なプロンプトを生成し、画像生成から確認までを自動化。AIによる画像生成の効率化に役立ちます。",
+      "key_points": [
+        "AIエージェントでComfyUIを自動操作",
+        "短い指示から詳細な画像生成プロンプト",
+        "画像生成ワークフローを効率化"
+      ],
+      "translation_ja": "## 何を作ったか\n\n自分のマシンで動いている `ComfyUI` を、AIエージェント（`Claude Code` など）から使うための `Skill comfyui-image-generation` を作りました。\n\nエージェントがやることは次の流れです。\n\n- 一言の依頼を、画像生成向けの英語プロンプトに書き広げる\n- ユーザーが書き出した `API` 形式のワークフローに、プロンプト・シード・サイズを入れる\n- `ComfyUI` にノードとモデルファイルが揃っているかを先に確認する\n- `127.0.0.1` の `ComfyUI` にジョブを投げ、完了を待って画像を保存する\n- 保存した画像を開いて、依頼と合っているかを確認する\n\nモデルは `Skill` が選ぶのではなく、渡したワークフローで決まります。`Flux` でも `Z-Image` でも、書き出した `API` 形式のワークフローを渡せば同じ流れで動く設計です（実測したのは `Qwen Image 2.1` だけです）。\n\n## 安全面で決めたこと\n\n`ComfyUI` にはログイン機能がないので、次のように絞っています。\n\n- 接続先は既定で `127.0.0.1` のみ。別のマシンに繋ぐには `--allow-remote` が必要\n- `ComfyUI` の起動・停止・再起動、ユーザーのジョブのキャンセルはしない\n- モデルのダウンロード、カスタムノードや `pip` パッケージのインストールはしない。足りないものは名前を報告して止まる\n- スクリプトは `Python` 標準ライブラリだけ。画像は指定フォルダにだけ保存し、既存ファイルは上書きしない\n\n## 実測した環境\n\n## 実際に出た画像\n\n依頼は短い一言で、エージェントが英語プロンプトに書き広げました。出力は赤いヴィンテージ自転車が古いレンガ壁に立てかけてある写真風の画像です（修整なし）。\n\nエージェントが書き広げた英語プロンプト（全文）：\n\n`A photograph of a red vintage bicycle leaning against an old, weathered brick wall on a quiet cobblestone street in a small European town. The bicycle stands slightly left of center, filling about a third of the frame, with a classic step-through frame, curved handlebars and a leather saddle. Low late-afternoon sun comes from the side, casting warm golden light and long soft shadows across the bricks and cobbles; the muted ochre and terracotta wall contrasts with the saturated red of the bicycle. Empty street with softly blurred old buildings in the background. Natural documentary photography, shallow depth of field, landscape composition, no text, no signs, no lettering.`\n\nエージェント自身が画像を見て確認した結果は次の通りです。\n\n- 合っていた点：赤い自転車、古いレンガ壁、石畳の路地、暖かい横からの光、画面内に文字なし\n- 足りなかった点：プロンプトでは長くやわらかい影を指定したが、画像では影があまり目立たない。車体の後ろ側が少しぼやけている\n\n## 使う前に必要なこと\n\n- `ComfyUI` が起動していること（`Skill` は起動しません）\n- ワークフローを `API` 形式で保存していること（設定で開発者向けオプションを有効にし、「`Save (API Format)`」）\n- ワークフローが使うモデルを、先にすべてダウンロードして所定のフォルダに置いておくこと。`Skill` は存在確認だけで、足りなければ止まります\n- 新しいモデルは新しいノードを使うことがあり、その場合は `ComfyUI` の更新が必要です\n\n## 確認できていないこと\n\n- 試したのは `Qwen Image 2.1` のワークフロー 1 つだけです。他のワークフローは未検証です\n- 1 回の試用です（最初の 1 回は途中で止めたので数えていません）\n- `Windows` / `Linux` / `NVIDIA GPU` では試していません\n\n## 入手先\n\n`AIBars` の `Skills` ディレクトリに掲載しています（`MIT` ライセンス、`AIBars` 作）。\n\nスクリプトを実行する `Skill` なので、使う前に中身を読んでください。",
+      "category": "ツール",
+      "importance": 5,
+      "source": "Zenn",
+      "published_at": "2026-10-10T09:45:39Z"
+    },
+    {
+      "url": "https://www.reddit.com/r/ClaudeAI/s/mbe5IY2LF9",
+      "title_ja": "Claude Codeで未発見の惑星を発見",
+      "summary_ja": "Claude Codeを使って、これまで知られていなかった惑星を発見したという驚きの報告です。AIが科学的な発見にどのように貢献できるか、その可能性を示す興味深い事例です。",
+      "key_points": [],
+      "translation_ja": null,
+      "category": "活用事例",
+      "importance": 4,
+      "source": "HackerNews",
+      "published_at": "2026-10-08T07:07:34Z"
+    }
+  ]
+}
