@@ -1,17 +1,17 @@
 {
-  "run_at": "2026-10-14T10:00:58Z",
+  "run_at": "2026-10-15T10:00:57Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
       "count": 98
     },
     "Reddit r/artificial": {
-      "status": "ok",
-      "count": 25
-    },
-    "Reddit r/MachineLearning": {
       "status": "failed",
       "count": 0
+    },
+    "Reddit r/MachineLearning": {
+      "status": "ok",
+      "count": 9
     },
     "TechCrunch AI": {
       "status": "ok",
@@ -31,7 +31,7 @@
     },
     "はてなブックマーク IT": {
       "status": "ok",
-      "count": 20
+      "count": 21
     },
     "Qiita AI": {
       "status": "ok",
