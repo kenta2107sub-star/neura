@@ -118,6 +118,11 @@ def canonicalize_model_results(
         if not isinstance(item, dict) or not isinstance(item.get("url"), str):
             invalid_count += 1
             continue
+        importance = item.get("importance")
+        # 重要度は画面のHTML属性にも入る。型の保証をGemini側の response_schema だけに頼らない
+        if isinstance(importance, bool) or not isinstance(importance, int):
+            invalid_count += 1
+            continue
         key = normalize_url(item["url"])
         original = originals.get(key)
         if not original:
@@ -137,6 +142,7 @@ def canonicalize_model_results(
                 for point in normalized["key_points"]
             ]
         normalized["category"] = normalize_category(normalized.get("category"))
+        normalized["importance"] = min(5, max(1, importance))
         normalized["url"] = original["url"]
         normalized["source"] = original["source"]
         normalized["published_at"] = original["published_at"]

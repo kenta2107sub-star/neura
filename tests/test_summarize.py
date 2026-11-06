@@ -130,6 +130,36 @@ def test_canonicalize_model_results_deduplicates_and_normalizes_newlines():
     assert result[0]["category"] == "ニュース"
 
 
+def test_canonicalize_model_results_drops_non_integer_importance(capsys):
+    selected = [_collected(url=f"https://example.com/{i}") for i in range(4)]
+    base = {"title_ja": "t", "summary_ja": "s", "key_points": [], "translation_ja": None, "category": "ニュース"}
+    raw = [
+        {**base, "url": "https://example.com/0", "importance": '5" onmouseover="alert(1)" x="'},
+        {**base, "url": "https://example.com/1", "importance": True},
+        {**base, "url": "https://example.com/2", "importance": 4.5},
+        {**base, "url": "https://example.com/3", "importance": 4},
+    ]
+
+    result = summarize.canonicalize_model_results(raw, selected)
+
+    assert [r["url"] for r in result] == ["https://example.com/3"]
+    assert result[0]["importance"] == 4
+    assert "形式=3" in capsys.readouterr().out
+
+
+def test_canonicalize_model_results_clamps_importance_to_1_through_5():
+    selected = [_collected(url="https://example.com/hi"), _collected(url="https://example.com/lo")]
+    base = {"title_ja": "t", "summary_ja": "s", "key_points": [], "translation_ja": None, "category": "ニュース"}
+    raw = [
+        {**base, "url": "https://example.com/hi", "importance": 99},
+        {**base, "url": "https://example.com/lo", "importance": -3},
+    ]
+
+    result = summarize.canonicalize_model_results(raw, selected)
+
+    assert [r["importance"] for r in result] == [5, 1]
+
+
 def test_build_selection_prompt_contains_title_and_url():
     arts = [_collected(title="GPT-5登場", url="https://x.com/gpt5", body="本文")]
     prompt = summarize.build_selection_prompt(arts, n=5)

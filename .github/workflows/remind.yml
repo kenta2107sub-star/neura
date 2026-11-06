@@ -6,6 +6,8 @@ on:
 jobs:
   remind:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read         # 読み取りのみ。リポジトリ既定の権限に依存しない
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -15,7 +17,11 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install --require-hashes -r requirements.txt
+        run: |
+          # sgmllib3k は sdist のみ。ビルド依存もハッシュ検証の対象にするため、
+          # ハッシュ固定の setuptools を先に入れ、分離ビルドを使わずにインストールする
+          pip install --require-hashes --only-binary :all: -r requirements-build.txt
+          pip install --require-hashes --no-build-isolation -r requirements.txt
 
       - name: Send unread reminder (FR-08)
         env:

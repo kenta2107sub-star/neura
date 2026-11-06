@@ -1637,7 +1637,7 @@
       'ツール':    ['badge-tool',     'ツール'],
     };
     const [cls, tag] = map[cat] || ['badge-news', cat || 'その他'];
-    return `<span class="category-badge ${cls}">[${tag}]</span>`;
+    return `<span class="category-badge ${cls}">[${escHtml(tag)}]</span>`;
   }
 
   function sourceLabel(src) {
@@ -1651,7 +1651,9 @@
     return map[src] || src;
   }
 
-  function importanceDots(score) {
+  function importanceDots(rawScore) {
+    /* 重要度はデータ由来の値。HTMLへ入れる前に 0〜5 の整数へ変換し、文字列のまま埋め込まない */
+    const score = Math.max(0, Math.min(5, Math.trunc(Number(rawScore)) || 0));
     const segs = Array.from({ length: 5 }, (_, i) => {
       const filled = i < score;
       const isMax = filled && score >= 5;

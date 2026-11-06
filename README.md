@@ -75,7 +75,8 @@ Neura は GitHub Actions を起点に、Hacker News・Reddit・各種 RSS フィ
 ```bash
 git clone https://github.com/{ユーザー名}/neura.git
 cd neura
-pip install --require-hashes -r requirements.txt
+pip install --require-hashes --only-binary :all: -r requirements-build.txt
+pip install --require-hashes --no-build-isolation -r requirements.txt
 cp .env.example .env
 # .env を編集して GEMINI_API_KEY・DISCORD_WEBHOOK_URL を記入する
 ```
@@ -124,6 +125,14 @@ pip install --require-hashes -r requirements.txt
 ```
 
 GitHub Actions でも同じハッシュ検証付きインストールを使います。`requirements.txt` だけを手で書き換えないでください。
+
+`feedparser` が使う `sgmllib3k` はソース配布しかなく、インストール時にビルドが走ります。ビルドに使う `setuptools` もハッシュで検証するため、`requirements-build.txt` を先に入れてから、分離ビルドを使わずに `requirements.txt` を入れます。`setuptools` を更新するときは `requirements-build.in` の版を変えて作り直してください。
+
+```bash
+uv pip compile requirements-build.in --generate-hashes --python-version 3.11 --output-file requirements-build.txt
+pip install --require-hashes --only-binary :all: -r requirements-build.txt
+pip install --require-hashes --no-build-isolation -r requirements.txt
+```
 
 ---
 
@@ -186,6 +195,8 @@ neura/
 ├── .env.example               # 環境変数テンプレート
 ├── requirements.in            # 直接依存の定義
 ├── requirements.txt           # ハッシュ付き完全ロック
+├── requirements-build.in      # sgmllib3k のビルドに使う setuptools の定義
+├── requirements-build.txt     # 上記のハッシュ付きロック
 └── README.md
 ```
 
