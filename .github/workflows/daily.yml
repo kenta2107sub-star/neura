@@ -23,7 +23,11 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install --require-hashes -r requirements.txt
+        run: |
+          # sgmllib3k は sdist のみ。ビルド依存もハッシュ検証の対象にするため、
+          # ハッシュ固定の setuptools を先に入れ、分離ビルドを使わずにインストールする
+          pip install --require-hashes --only-binary :all: -r requirements-build.txt
+          pip install --require-hashes --no-build-isolation -r requirements.txt
 
       - name: Collect articles (FR-01)
         run: python scripts/collect.py

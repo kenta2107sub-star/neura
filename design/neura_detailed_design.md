@@ -1615,8 +1615,11 @@ class DigestIndex(TypedDict):
 `requirements.in` は直接依存だけを、正確なバージョン指定で定義する。`requirements.txt` は `uv pip compile requirements.in --generate-hashes --output-file requirements.txt` で生成するハッシュ付き完全ロックであり、推移依存もすべて含める。実行環境とCIは次のコマンドだけでインストールする。
 
 ```bash
-pip install --require-hashes -r requirements.txt
+pip install --require-hashes --only-binary :all: -r requirements-build.txt
+pip install --require-hashes --no-build-isolation -r requirements.txt
 ```
+
+`feedparser` の依存 `sgmllib3k` はソース配布（sdist）しかなく、インストール時にビルドする。pip の分離ビルドはビルド依存（`setuptools`）をハッシュ検証せずに取得するため、ハッシュ付きの `requirements-build.txt`（`requirements-build.in` から `uv pip compile requirements-build.in --generate-hashes --python-version 3.11 --output-file requirements-build.txt` で生成）を先に入れ、`--no-build-isolation` でそれを使ってビルドする。`requirements.txt` のうちビルドが必要なのは `sgmllib3k` だけである。
 
 依存関係を追加・更新するときは `requirements.in` を更新し、`uv pip compile requirements.in --generate-hashes --output-file requirements.txt` を実行して `requirements.txt` を再生成する。`requirements.txt` を手で編集したり、ハッシュなしのインストールを使ったりしない。
 
@@ -1651,7 +1654,9 @@ jobs:
           cache: 'pip'       # requirements.txtをキャッシュして高速化
 
       - name: Install dependencies
-        run: pip install --require-hashes -r requirements.txt
+        run: |
+          pip install --require-hashes --only-binary :all: -r requirements-build.txt
+          pip install --require-hashes --no-build-isolation -r requirements.txt
 
       - name: Collect articles (FR-01)
         run: python scripts/collect.py

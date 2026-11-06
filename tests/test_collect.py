@@ -96,6 +96,49 @@ def test_article_url_filter_rejects_non_public_ip_literals(url):
     assert collect.is_allowed_article_url(url) is False
 
 
+@pytest.mark.parametrize("url", [
+    # 全角数字と「。」は yarl が 127.0.0.1 に変換し、aiohttp は独自リゾルバを通さず接続する
+    "http://１２７。０。０。１/",
+    "http://１０．０．０．１/",
+    # 正規形でない IPv4 表記（OS の旧来の解釈では 127.0.0.1 になる）
+    "http://127.0.0.01/",
+    "http://127.1/",
+    "http://2130706433/",
+    "http://0x7f.1/",
+    "http://127.0.0.1./",
+    # NAT64 に埋め込まれた私設 IPv4（10.0.0.1）
+    "http://[64:ff9b::a00:1]/",
+])
+def test_url_validation_rejects_ip_literals_that_bypass_the_strict_parser(url):
+    assert collect.is_allowed_article_url(url) is False
+    with pytest.raises(collect.UnsafeUrlError):
+        collect.validate_public_url(url, ("http", "https"))
+
+
+@pytest.mark.parametrize("url", [
+    "https://example.com/article",
+    "https://93.184.216.34/article",
+    "https://xn--r8jz45g.jp/article",
+    "https://日本語.jp/article",
+    "https://example123.com/a",
+])
+def test_url_validation_keeps_public_hosts(url):
+    assert collect.is_allowed_article_url(url) is True
+
+
+def test_fetch_public_bytes_rejects_redirect_to_fullwidth_loopback():
+    location = "http://１２７。０。０。１/admin"
+    session = _FakeSession([_FakeResponse(status=302, headers={"Location": location})])
+
+    with pytest.raises(collect.UnsafeUrlError):
+        asyncio.run(collect.fetch_public_bytes(
+            session,
+            "https://example.com/article",
+            allowed_schemes=("http", "https"),
+            max_bytes=collect.ARTICLE_MAX_BYTES,
+        ))
+
+
 class _FakeContent:
     def __init__(self, chunks):
         self.chunks = chunks

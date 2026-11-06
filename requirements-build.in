@@ -1,0 +1,4 @@
+# sdist しか配布されていない sgmllib3k（feedparser の依存）をビルドするための setuptools。
+# ハッシュ付きで先に入れ、requirements.txt は --no-build-isolation でインストールする。
+# 更新時はこのファイルの版を変え、requirements-build.txt を再生成する。
+setuptools==84.2.1

@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import re
 import socket
 import sys
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ import aiohttp
 from aiohttp.abc import AbstractResolver
 import feedparser
 import trafilatura
+from yarl import URL  # aiohttp の必須依存。aiohttp が接続先の解析に使うパーサと同じものを使う
 
 from config_loader import load_config
 from schemas import CollectedArticle, Keywords, Source
@@ -57,37 +59,70 @@ def validate_public_url(raw_url: str, allowed_schemes: tuple[str, ...]) -> str:
         raise UnsafeUrlError("URL credentials are not allowed")
     if port is not None and not 1 <= port <= 65535:
         raise UnsafeUrlError("URL port is not allowed")
-    try:
-        ipaddress.ip_address(parsed.hostname)
-    except ValueError:
-        pass
-    else:
-        if not _is_public_ip(parsed.hostname):
-            raise UnsafeUrlError("URL address is not public")
+    host = _connect_host(raw_url)
+    if _looks_like_ip_literal(host) and not _is_public_ip(host):
+        raise UnsafeUrlError("URL address is not public")
     return parsed.geturl()
+
+
+def _connect_host(raw_url: str) -> str:
+    """aiohttp が接続先として使うホスト名を、aiohttp と同じ yarl で取り出す。
+
+    urlsplit のホスト名と、yarl が IDNA 変換した後のホスト名は一致しないことがある
+    （例：全角数字と「。」は yarl で 127.0.0.1 になる）。検査は接続に使う側の値で行う。
+    """
+    try:
+        host = URL(raw_url).raw_host
+    except (TypeError, ValueError) as exc:
+        raise UnsafeUrlError("URL host is malformed") from exc
+    if not host:
+        raise UnsafeUrlError("URL scheme or host is not allowed")
+    return host
+
+
+_NUMERIC_LABEL = re.compile(r"(?:0x[0-9a-f]*|[0-9]+)", re.IGNORECASE)
+
+
+def _looks_like_ip_literal(host: str) -> bool:
+    """IPアドレスとして解釈されうるホストか（IPv6、または末尾ラベルが数値）。
+
+    aiohttp はIPアドレスと判定したホストを独自リゾルバに渡さず、OSの解決に任せる。
+    OSは 127.1・2130706433・0x7f.1 のような旧来の表記も受け付けるため、
+    このようなホストは厳密な表記で、かつ公開アドレスの場合だけ通す。
+    """
+    if ":" in host:
+        return True
+    last_label = host.rstrip(".").rsplit(".", 1)[-1]
+    return bool(_NUMERIC_LABEL.fullmatch(last_label))
+
+
+_NAT64_PREFIX = ipaddress.ip_network("64:ff9b::/96")
 
 
 def _is_public_ip(address: str) -> bool:
     try:
-        return ipaddress.ip_address(address).is_global
+        ip = ipaddress.ip_address(address)
     except ValueError:
         return False
+    if not ip.is_global:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address):
+        # IPv4 を埋め込む形式は、埋め込まれた IPv4 側も公開アドレスでなければならない
+        embedded = ip.ipv4_mapped or ip.sixtofour
+        if embedded is None and ip in _NAT64_PREFIX:
+            embedded = ipaddress.IPv4Address(ip.packed[-4:])
+        if embedded is not None and not embedded.is_global:
+            return False
+    return True
 
 
 def is_allowed_article_url(raw_url: str) -> bool:
     """記事として保持できるHTTP(S) URLかを、DNS解決前の境界で判定する。"""
     try:
-        parsed = urlsplit(validate_public_url(raw_url, ("http", "https")))
-        host = parsed.hostname
-        if not host:
-            return False
-        try:
-            ipaddress.ip_address(host)
-        except ValueError:
-            return True
-        return _is_public_ip(host)
+        validate_public_url(raw_url, ("http", "https"))
     except UnsafeUrlError:
         return False
+    return True
 
 
 class PublicInternetResolver(AbstractResolver):
