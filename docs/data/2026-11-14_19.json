@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-14",
+  "time": "19:00",
+  "generated_at": "2026-11-14T10:15:04Z",
+  "articles": [
+    {
+      "url": "https://9to5mac.com/2026/11/10/apple-has-new-mac-app-coming-to-make-running-local-ai-models-easy/",
+      "title_ja": "Apple、MacでAIモデルを簡単に",
+      "summary_ja": "Appleが「Harbor」という新Macアプリを開発中。MacをプライベートなAI推論サーバーに変え、ローカルでAIモデルを簡単に実行できるようになるのが面白い。Thunderbolt 5で複数Macを接続し、メモリを共有して大規模モデルも動かせる。",
+      "key_points": [
+        "MacをプライベートAIサーバーにできる",
+        "複数Macでメモリを共有し大規模モデル対応",
+        "設定が簡単で専門知識不要"
+      ],
+      "translation_ja": "The article reports that Apple is developing a new Mac app called **Harbor**, which will make it easy to run local AI models across one or more Macs. Leaker Aaron Perris discovered evidence of this app, which is designed to turn a Mac into a **private AI inference server**.\nHarbor allows users to run open-weight models locally on Apple silicon, ensuring data never leaves the hardware and nothing reaches the cloud. A key feature is the ability to connect multiple Mac computers over **Thunderbolt 5** to pool unified memory, enabling larger models and higher concurrency that a single computer can handle alone.\n\n## Feature Highlights:\n- **Setup in minutes, not hours**: Harbor automatically detects devices over Thunderbolt 5 to form a cluster, requiring no manual configuration, command line, or infrastructure expertise.\n- **Download and run models directly**: Users can browse, download, and load open-weight models from within the app, with Harbor handling model management.\n- **Cluster for scale**: Connecting two or more Thunderbolt 5-capable Macs pools their unified memory into a single inference resource, allowing for models exceeding a single computer's capacity or serving more concurrent requests.\n\nHarbor is currently in a private preview under Apple’s Claris brand, with a public launch expected in the coming weeks and months.",
+      "category": "ニュース",
+      "importance": 5,
+      "source": "HackerNews",
+      "published_at": "2026-11-10T21:25:03Z"
+    },
+    {
+      "url": "https://github.com/hyperionaidev/smolmaxxing/",
+      "title_ja": "古いデバイスでLLMを動かす",
+      "summary_ja": "古いスマホやタブレット、TVボックスなどの小型デバイスで大規模言語モデル（LLM）を動かすプロジェクト「smolmaxxing」。カスタムカーネルやメモリ最適化により、少ないRAMでも80Bモデルを動かすことに成功。身近なデバイスでAIが使えるようになる可能性を示している。",
+      "key_points": [
+        "古い・小型デバイスで大規模LLMを実行",
+        "少ないRAMで80Bモデルも動作可能に",
+        "カスタムカーネルとメモリ最適化が鍵"
+      ],
+      "translation_ja": "This GitHub repository, **smolmaxxing**, focuses on making the largest possible language models (LLMs) run on the smallest and oldest hardware available, such as TV boxes, old phones, tablets, single-board computers, and routers. These devices often have idle CPUs, RAM, and flash storage.\n\nThe project aims to push the limits of what these devices can run by using custom kernels, careful memory management, and weights streamed from flash storage. All performance numbers in the repository are measured directly on the devices.\n\n## Key Achievements:\n- TV boxes and iPads are running 8B and 16B mixture-of-experts (MoE) models on approximately 1 GB of RAM.\n- Phones are running 35B and 80B MoE models with about 3 GB of free RAM.\n- These devices keep only a portion of each model in memory, reading the rest from flash storage as needed.\n\nThe techniques developed are not tied to specific hardware. For example, the 1-bit kernel only requires basic NEON support, and flash streaming works on any Linux or Android device with more model size than RAM.\n\n## Main Ideas (Patch on `llama.cpp`):\n- **Kernels built for the chip**: Includes a 1-bit lookup-table kernel, repacked 2-bit and ternary formats for Cortex-A55, and versions for A7 (which lacks dot-product instructions).\n- **Less RAM per model**: Rarely used vocabulary output rows are dropped. A \"headless\" mode on TV boxes stops the launcher and Google services while a model runs to free up RAM.\n- **Experts paged from flash**: For MoE models, popular experts are kept in RAM, while others are read from flash on demand, with prefetching for the next layer. This enables 8B/16B models on 1 GB RAM and 35B/80B models on phones.\n- **Streaming for dense models larger than RAM**: Achieves full flash speed.\n\nDetailed explanations of each technique and its measured gain are available in `docs/how-it-works.md`.\nUsers can get started with ready-made model files from Hugging Face. The TV box and iPad files require the patched `llama.cpp` (stock `llama.cpp` cannot load their pruned heads), while phone files load anywhere but need the patch's expert pager for optimal speeds.",
+      "category": "ツール",
+      "importance": 5,
+      "source": "HackerNews",
+      "published_at": "2026-11-12T15:23:10Z"
+    },
+    {
+      "url": "https://www.theguardian.com/science/2026/nov/13/kurt-godel-notebooks-ai-helps-unlock-hidden-discoveries-man-who-transformed-maths",
+      "title_ja": "AIがゲーデルの未公開ノートを解読",
+      "summary_ja": "AIモデル「Claude」が、20世紀の数学者ゲーデルの未公開ノートを解読し、数百もの未発表定理を発見。解読に年間50ページが限界だった人間に対し、AIは数日で650ページを分析。AIが歴史的文書の理解を加速させる驚くべき活用事例。",
+      "key_points": [
+        "AIが数学者ゲーデルの未公開ノートを解読",
+        "数百の未発表定理を発見",
+        "人間では困難な大規模文書分析をAIが実現"
+      ],
+      "translation_ja": "The Austrian logician **Kurt Gödel**, one of the most original thinkers of the 20th century, published his two incompleteness theorems in 1931, which transformed mathematics and laid the groundwork for the digital age. While his published work was limited after the 1930s, his unpublished material spans tens of thousands of pages, including 16 \"workbooks\" from the early 1940s, totaling 1,009 pages of densely written mathematical and logical text. Much of this was written in an obsolete German shorthand called Gabelsberger.\n\nFinnish logician Jan von Plato had been leading a project at Helsinki University since 2017 to understand these workbooks. Progress was painstakingly slow, at about a page per week, until September when he enlisted the help of the AI model **Claude**. Within a couple of days, Claude provided a comprehensive digest of the entire material, revealing that Gödel had proved hundreds of previously unknown theorems.\n\nVon Plato expressed his astonishment, stating that the workbooks not only contain dozens of anticipations of results not known until the 1970s and 80s but also 14 themes in logic that have not yet been pursued. He emphasized that Gödel was far ahead of his time.\n\nGödel's incompleteness theorems revealed the limits of mathematical knowledge, showing that in all mathematical systems, there are true statements that can neither be proved nor disproved. This work inspired Alan Turing's 1936 paper, which began the theory of modern computation.\n\nIn 1966, American mathematician Paul Cohen won the Fields medal for showing the independence of the continuum hypothesis and the axiom of choice. Gödel claimed to have already proved this result in the 1940s but was unable to reconstruct the proof from his notes when pressed by peers.\n\nVon Plato's first task for Claude was to determine if Gödel's workbooks contained a proof of the independence of the axiom of choice. Claude's analysis indicated that Gödel was \"just one step away,\" having made a minor error in a definition, which he had correctly formulated two years prior. Von Plato found the architecture of Gödel's proof \"wonderful,\" as it made various set theory results follow a uniform pattern.\n\nHe highlighted that humans read one page at a time and tend to forget details, taking a year to read about 50 pages, making it impossible to keep all parts in mind. In contrast, the AI can connect all the pieces across a thousand pages, viewing all of Gödel's writings as a single coherent work.",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "HackerNews",
+      "published_at": "2026-11-13T17:30:10Z"
+    },
+    {
+      "url": "https://togetter.com/li/2770106",
+      "title_ja": "AIがスライドとツールを生成",
+      "summary_ja": "学生が発表で使ったスライドがAI製で、さらにそのスライドを編集するツール自体もAIとHTMLで生成されていたという衝撃的な話。FigmaやCanvaを使わず、AIに直接コンテンツとエディタを作らせることで、欲しい機能だけのツールを簡単に手に入れられる新時代の活用事例。",
+      "key_points": [
+        "AIがスライドコンテンツと編集ツールを生成",
+        "FigmaやCanvaを使わない新しい制作フロー",
+        "欲しい機能だけのカスタムツールを簡単に作成"
+      ],
+      "translation_ja": "今日は衝撃でした。 私「このスライドはAI使ってますよね？ソフトはなんですか？」 学生「全部AIです」 私「？Figmaですか？」 学生「スライドもAIでHTMLで作らせましたが、スライドソフト自体もAIでHTML製です。文字の位置調整とかできます」 私「」 x.com/100kw/status/2…\n2026-11-13 13:10:24これまでコンテンツをつくるためにアプリ・ソフトウェアツールがあったのだけど、生成AIで直接コンテンツ生成でき、ついでにエディタも添えられる。 - Menu - 「スライドコンテンツにエディタを添えて」\n2026-11-13 13:16:09ちょうどその学生の前に、FigmaでAIと連携して〜みたいな人がいた流れだったので、ひっくり返りそうになりました。さらに上がいたと。上というかもっと楽じゃんと。 x.com/100kw/status/2…\n2026-11-13 14:29:36ツールごと作らせるほうが手っ取り早い？\nこれ、AIの側から「作りましょうか？」って言ってきますね。 x.com/100kw/status/2…\n2026-11-13 17:24:20ツール自作ブーム、ブームっていうかやっぱこれ当たり前になるよなぁ 欲しい機能だけが付いた自分用ツール作るとツールの使い方の学習コストがめちゃくちゃ低くて楽なんすよね… x.com/100kw/status/2…\n2026-11-13 14:23:38私も、この半年くらい前から、編集可能なPowerPoint（特定のツールに依存するファイル形式）を生成したいという気持ち自体がすでになくなっていて、修正もAIだし、そのための自作ツール（いい感じの挿入画像を生成するとか）もあるような状態になりましたね〜。FigmaやCanvaなどもほとんど開くことがなくなってしまってます。 講義のスライドもすべてHTMLになってるのですが、単なるファイル形式だけの変化ではないんですよね。Javascriptでインタラクティブコンテンツが組み込まれているので、教材で遊べるようになってしまいました。 学生たちが自由に触って動かして、パラメータを変えながら学習できるようになってしまうと、パワポで必死にアニメーションを作ることが無意味（時間がかかる上に、一例を示すだけしかできない）に思えてきます。 再生ボタンがついていて、それを押すと、レーザーポインタを制御しながら、読み上げて、インタラクティブコンテンツを操作しながら、AIが講義をしてくれる機能があるので、もう私はいらないのではないかと思う感じになってきてます。 結果、講義の半分は、AIを使って、調べる作業を入れるなど、講義自体も完全に変わってしまった感じに。90分の中で反転学習みたいな感じのことができるようになってしまいました。\n2026-11-13 16:17:20これ結構良くて、スライドの中にタイマーを実装したり、「このスライドは何分何秒までに読み終わるのが本来のペースか」というペースメーカーを表示しておいたり、いろいろとカスタマイズが効くので便利。 x.com/100kw/status/2…\n2026-11-13 14:42:37なんだか、ソフトウェアが完成された成果物ではなく、作業過程で一時的に生成される消耗品のような立ち位置になり始めたのは実感するなあ。 もちろん、分野やモノに依るけど。 x.com/100kw/status/2…\n2026-11-13 14:26:07本当にHTML描画という大罪は便利。印刷物作る時とかもillustratorをMCPでゴリゴリ調整するよりまずはHTMLで下書き作ってそれをillustratorに転記する方がずっと精度もいいしバグらない。 x.com/100kw/status/2…\n2026-11-13 17:28:23こんな時代に、 何十時間もかけて１ページのスライドを作る。 何度も言葉の表現を微調整しながら。 つらい笑 x.com/100kw/status/2…\n2026-11-13 18:25:06車輪の再発明\n@100kw あー、なんか通信容量をギガですって呼び始めた時と同じようなフィーリングがある。これをなんて表現したらいいのかわからんけど・・・\n2026-11-13 15:30:26これスライドソフト作るっていうと大袈裟に聞こえるけど、二言くらい頼むと出来るからね。 読み込みも出力もできるし、Adobeもオフィスも別にいらないんですよ x.com/100kw/status/2…\n2026-11-13 16:03:44Claude CodeやCodexなどでデザインさせると、HTMLが圧倒的にクオリティが高く、Figmaを操作させて作るとポンコツが出てくるし、パワポもダメ。 モバイルアプリなどをデザインするときも、Figmaは使わずHTMLでまずデザインのモックを作ってから移植している。 移植も手間なのでWebで代替できるなら、 HTMLのデザインをベースに機能を足していった方が楽\n2026-11-13 20:13:14私もスライドはClaudeでHTML派です。 パワポの制約がない分、デザインが自由でおしゃれになります。 仕上げにパワポやGoogleスライドへ変換して、再現できなかった部分は、直し方ごとスキル化して覚えさせています！ x.com/100kw/status/2…\n2026-11-13 19:14:38かつての、おえかきSNSで限られた機能のツールでめっちゃすごいイラスト描く絵師とか、エクセルで絵を描いてるおじいちゃんとか、スクラッチをSNSがわりにしてる小学生とか。 ひとつのツールでどこまで出来るか、は創造性を産むな。 x.com/100kw/status/2…\n2026-11-13 15:52:15AIを「ひとつのツール」と言うのは語弊あるのは理解しつつ。「ひとつのインターフェースで工夫する」ほうがニュアンスとしては正しいか。\n2026-11-13 15:53:13",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "HatenaBookmark",
+      "published_at": "2026-11-13T13:27:08Z"
+    },
+    {
+      "url": "https://zenn.dev/conbi_fan/articles/d716e5e297e59b",
+      "title_ja": "ローカルLLMを標準にするSurface Laptop Ultra構想",
+      "summary_ja": "VRAM 8GBのPCからSurface Laptop Ultra（128GBユニファイドメモリ）への移行を想定し、ローカルLLMを日常業務の標準にする構想。クラウドに頼っていた作業をローカルに移し、Qwen3-14Bモデルを安定運用することで、開発効率とプライバシー保護を両立させる。",
+      "key_points": [
+        "128GBメモリPCでローカルLLMを標準化",
+        "クラウド依存を減らし、プライバシーを保護",
+        "Qwen3-14Bを日常業務の最適モデルに"
+      ],
+      "translation_ja": "VRAM 8GBから128GBユニファイドメモリへ。「ローカルLLMを標準にする」ためのSurface Laptop Ultra構想\n\nはじめに：なぜ「ローカルLLMを標準にしたい」のか\nいま使っているPCは、GPUメモリが8GBしかない。\nこの環境でも小さなローカルLLMは動かせるが、用途はかなり限定される。\n短い補完や簡単な分類ならローカルで処理できる。\nしかし、長いエラーログの解析、複数ファイルにまたがる設計相談、プライバシーに配慮が必要な文章の要約などは、どうしてもクラウドLLMに頼ることになる。\nつまり、クラウドが**デフォルト**になっている。\nSurface Laptop Ultraに惹かれるのは、この「デフォルト」を変えられる可能性があるからだ。\n最大128GBのユニファイドメモリ、NVIDIA RTX Spark、CUDA対応。\nこの仕様を見る限り、今までクラウドに逃がしていた作業の一部を、ローカル側へ戻せるかもしれない。\nこの記事では、実測済みの性能ではなく、「ローカルLLMを標準にするために、どんな構成と使い分けが必要か」を設計する。\n\nなぜQwen3-14Bを「唯一の標準」にするのか\nSurface Laptop Ultraの128GBユニファイドメモリなら、より大きいモデルも検証できる余地がある。\nしかし、この記事ではあえてQwen3-14Bを「唯一の標準」として据える。\n理由は3つだ。\n1. **VRAM 8GB環境での経験から**\nギリギリを攻めてOOMや遅延にイライラしたくない。「日常の開発フローに組み込めるかどうか」を最優先したい。\n2. **Qwen3-14Bの実用性**\nコード生成・補完だけでなく、おしゃべり・エラー解析・短文要約までカバーできる汎用性がある。\nINT4量子化でVRAM使用量約9GB程度。128GB環境ならVS Codeやブラウザと併用しても余裕がある。\n3. **ハイブリッドLLMとしてのバランス**\n14Bでローカル化する作業と、クラウドに残す作業の線引きが明確になる。\n「大きいモデル＝ローカル」ではなく、「適切なモデル＝ローカル」を選ぶ。\nつまり、Qwen3-14Bは「妥協」ではない。\n「クラウド依存をやめ、ローカルLLMを日常の標準にするための最適な選択」 だ。\n\nなぜ「AIを活用した創作・検証活動」は別枠とするのか\nQwen3-14Bをローカルの標準にしても、「AIを使って何かを作ってみた」「新しい使い方を試してみた」といった創作・検証活動まで、この構想に含める必要はない。\nVRAM 8GBのPCでは、日常の開発支援とAI創作活動を同じ環境で混在させると、リソース管理や目的の切り分けが難しくなっていた。\nSurface Laptop Ultraなら性能は向上するが、「ローカルLLMを標準にする」ことと「AI創作活動」は目的が異なる。\nそのため、「日常の開発支援」はローカルLLMで標準化し、「AIを活用した創作・検証活動」は別途取り組む と明確に役割を分ける。\n具体的には、ローカルLLMはコード生成・エラー解析・設計相談などの日常業務に集中させる。\n一方、AIを使って何かを作る活動は、必要なリソースやツールを別に用意し、ローカルLLMの標準運用とは干渉しない形で進める。\nこれは「ローカルLLMを標準にする」ことと矛盾しない。\nむしろ、「日常の開発支援とAI創作活動を分離することで、ローカルLLMを安定して使い続けられる」 というハイブリッド設計だ。\n\nなぜGUIはOllama Desktopなのか\n普段からScriptAPIやGUI開発に関心があるが、この記事ではあえて自作GUIではなく、Ollama Desktopを選択する。\n理由は3つだ。\n- **再現性の担保**\n読者が同じ環境を再現しやすい。Arm Windows対応も進んでおり、Surface Laptop Ultraとの親和性が高い。\n- **焦点の明確化**\n構想記事で「GUIの実装方法」まで書くと、「ローカルLLMを標準にする」という本題がぼける。Ollama Desktopを使うことで、モデル構成と使い分けに集中できる。\n- **実用性の優先**\n「安定の標準」を目指す以上、ツール選びも「毎日ストレスなく使えるか」が基準。Ollama Desktopはその条件を満たしている。\nもちろん、将来的にScriptAPIでカスタムGUIを作る可能性はある。\nしかし、まずはOllama Desktopで「ローカルLLMを標準にする」体験を確立したい。\n\nArm Windowsでの動作確認：最初の検証項目\nQwen3-14Bを安定の標準にするためには、まずArm Windows上でのCUDA対応ランタイムの互換性を確認する必要がある。\nMicrosoft公式ではCUDA対応を謳っているが、ArmベースのRTX Sparkで、既存のx86向けCUDAバイナリ（`llama.cpp`, `Ollama`等）がそのまま動くかは未確認だ。[[11]]\nx86向けビルドがPrismエミュレーター経由で動くか、Armネイティブビルドが提供されているか、これが最初の検証項目になる。\nここがクリアできて初めて、「ローカルLLMを標準にする」構想が現実のものとなる。\n\nまとめ：クラウド依存をやめるための「安定」\nSurface Laptop Ultraを手に入れたら、まず「何でもローカルでやるAI PC」にはしない。\n自分の8GB VRAM環境ではクラウドに逃がしていた、コード解析、ログ整理、長めの設計相談、個人メモ検索をローカルに移せないか検証する。\nそのうえで、最新情報確認や高精度が必要な判断だけクラウドに残す。\nつまり、Surface Laptop Ultraは自分にとって“巨大モデルを見せびらかす機械”ではなく、クラウド依存を減らすためのローカルLLM専用機になる。\nQwen3-14Bを「安定の標準」に据え、Ollama Desktopで日常的に使い、AIの検証だけはクラウドに任せる。\nこのハイブリッド構成こそが、VRAM 8GBから128GBユニファイドメモリへ移行する本当の価値だと思う。\n\n備考：AIの活用について\n本記事の執筆およびコード解説の一部には、生成AI（Qwen）を活用しています。\nただし、技術的な正確性の確認、出典の確認、文章の構成・校正は、筆者（Conbi Fan）自身が行っています。\n生成AIはあくまで効率化のツールとして使用しており、記事の内容は筆者が確認・整理したうえで掲載しています。\nなお、本記事は Surface Laptop Ultra の実機を持っていない状態で書いた構想記事です。\nそのため、Surface Laptop Ultra 上でのモデル実行速度、メモリ使用量、バッテリー駆動時間、各種ツールの互換性については実測していません。\n公式仕様に基づく情報と、筆者のVRAM 8GB環境での経験、導入後に検証したい構想を区別して記載しています。\nコードを掲載する場合は、実行環境と確認状況を明記します。\n未実行のコードや設計案については、その旨を明示します。",
+      "category": "活用事例",
+      "importance": 5,
+      "source": "Zenn",
+      "published_at": "2026-11-14T06:00:05Z"
+    }
+  ]
+}
