@@ -1,9 +1,9 @@
 {
-  "run_at": "2026-11-20T10:00:53Z",
+  "run_at": "2026-11-21T10:00:53Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
-      "count": 98
+      "count": 97
     },
     "Reddit r/artificial": {
       "status": "failed",
