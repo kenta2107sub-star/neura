@@ -1,5 +1,5 @@
 {
-  "run_at": "2026-11-22T10:00:55Z",
+  "run_at": "2026-11-23T10:00:53Z",
   "sources": {
     "Hacker News": {
       "status": "ok",
@@ -31,7 +31,7 @@
     },
     "はてなブックマーク IT": {
       "status": "ok",
-      "count": 23
+      "count": 21
     },
     "Qiita AI": {
       "status": "ok",
